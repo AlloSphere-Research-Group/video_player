@@ -6,7 +6,12 @@ project(VideoPlayer)
 set(APP_NAME app)
 
 # path to main source file
-add_executable(${APP_NAME} src/main.cpp
+add_executable(${APP_NAME}
+    src/videoplayback.hpp
+    src/al_VideoPlayer.hpp
+
+    src/main.cpp
+    src/videoplayback.cpp
     src/al_VideoPlayer.cpp)
 
 # add allolib as a subdirectory to the project
