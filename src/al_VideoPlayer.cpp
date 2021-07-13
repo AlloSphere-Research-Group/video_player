@@ -56,7 +56,7 @@ VideoFileReader::VideoFileReader(const char *path,
     }
   }
   mAudioCodecContextOpened = false;
-  if (mSyncMode == SYNC_AUDIO || mSyncMode == SYNC_AUTO) {
+  if (mSyncMode == SYNC_AUDIO) {
     if (mAudioStreamIndex >= 0) {
       mAudioCodecContext = mFormatContext->streams[mAudioStreamIndex]->codec;
       mAudioCodec = avcodec_find_decoder(mAudioCodecContext->codec_id);
@@ -89,7 +89,7 @@ void VideoFileReader::start() {
   if (mReaderThread) {
     stop();
   }
-  if (mSyncMode == SYNC_AUDIO || mSyncMode == SYNC_AUTO) {
+  if (mSyncMode == SYNC_AUDIO) {
     mRunning.store(true);
     mReaderThread = new std::thread(readFunction, this);
     while (mAudioBuffer->readSpace() < 8192) {
@@ -99,7 +99,7 @@ void VideoFileReader::start() {
 
   // TODO if syncing to wall clock then spawn reader thread
   if (!mReaderThread && mCodecContextOpened &&
-      (mSyncMode == SYNC_INTERNAL || mSyncMode == SYNC_AUTO)) {
+      (mSyncMode == SYNC_INTERNAL || mSyncMode == SYNC_FREE)) {
     mRunning.store(true);
     mReaderThread = new std::thread(readFunctionNoAudio, this);
   }
@@ -180,6 +180,18 @@ bool VideoFileReader::nextFrame() {
       if (av_read_frame(mFormatContext, &packet) >= 0) {
         if (packet.stream_index == mVideoStreamIndex) {
           readVideoFromPacket(this, packet, frame_);
+          if (!assigned_buffer_) {
+            std::cout << "Decode into index " << mPicBufWrite << std::endl;
+            avpicture_fill((AVPicture *)frame_rgb_,
+                           mPictureBuffer[mPicBufWrite].data(), AV_PIX_FMT_RGBA,
+                           mPictureCodecContext->width,
+                           mPictureCodecContext->height);
+            int newIndex = mPicBufWrite + 1;
+            if (newIndex == mPicBufSize) {
+              newIndex = 0;
+            }
+            mPicBufWrite = newIndex;
+          }
           gotFrame = true;
         }
       } else {
@@ -541,9 +553,9 @@ void VideoTexture::readFrame(uint64_t framenum) {
   }
   if (mVideoReader->nextFrame()) {
 
-    for (auto i = 0; i < 300000; i++) {
-      mVideoReader->pixels()[i] = 255;
-    }
+    //    for (auto i = 0; i < 300000; i++) {
+    //      mVideoReader->pixels()[i] = 255;
+    //    }
     this->submit(mVideoReader->pixels());
   }
 }

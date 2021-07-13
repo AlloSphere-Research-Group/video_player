@@ -1,4 +1,5 @@
 
+#include "al/graphics/al_Font.hpp"
 #include "al/system/al_Time.hpp"
 
 #include "videoplayback.hpp"
@@ -22,14 +23,28 @@ void MyApp::onCreate() {
   //    s.uniform("texture", 1.0);
   //    s.uniform("lighting", 0.1);
   //    s.end();
-  mVideoTexture.init(
-      "C:/Users/Andres/Documents/Zoom/2021-04-28 19.26.43 Andres Cabrera "
-      "Perez's Zoom Meeting 85001728190/zoom_0.mp4");
+  if (isPrimary()) {
+    mVideoTexture.init(
+        "C:/Users/Andres/Documents/Zoom/2021-04-28 19.26.43 Andres Cabrera "
+        "Perez's Zoom Meeting 85001728190/zoom_0.mp4",
+        VideoFileReader::SYNC_AUDIO);
+  } else {
+    mVideoTexture.init(
+        "C:/Users/Andres/Documents/Zoom/2021-04-28 19.26.43 Andres Cabrera "
+        "Perez's Zoom Meeting 85001728190/zoom_0.mp4",
+        VideoFileReader::SYNC_FREE);
+
+    //    mVideoTexture.start();
+  }
   // Set sampling rate and channel count from video
-  audioDomain()->stop();
-  audioDomain()->audioIO().framesPerSecond(mVideoTexture.audioSampleRate());
-  audioDomain()->audioIO().channelsOut(mVideoTexture.audioNumChannels());
-  audioDomain()->start();
+
+  if (mVideoTexture.audioNumChannels() > 0 &&
+      mVideoTexture.audioNumChannels() < 128) {
+    audioDomain()->stop();
+    audioDomain()->audioIO().framesPerSecond(mVideoTexture.audioSampleRate());
+    audioDomain()->audioIO().channelsOut(mVideoTexture.audioNumChannels());
+    audioDomain()->start();
+  }
 
   //  mVideoTexture.print();
   mVideoTexture.setPlayMode(VideoFileReader::PLAY_ONESHOT);
@@ -110,10 +125,6 @@ void MyApp::onDraw(Graphics &g) {
   g.clear();
   if (isPrimary()) {
     g.texture();
-    //    g.pushMatrix();
-    //    g.translate(0, 0.1, -3);
-    //    g.draw(mQuadL);
-    //    g.popMatrix();
     mVideoTexture.bind();
     mVideoTexture.readFrame();
     if (mSideBySide) {
@@ -130,8 +141,27 @@ void MyApp::onDraw(Graphics &g) {
       g.popMatrix();
     }
     mVideoTexture.unbind();
-    //    std::cout << state().frameNum - mVideoTexture.currentFrame() <<
-    //    std::endl;
+  } else {
+    FontRenderer::render(g, std::to_string(state().frameNum).c_str(),
+                         {-1, 1, -3});
+    g.texture();
+    mVideoTexture.bind();
+
+    mVideoTexture.readFrame(state().frameNum);
+    if (mSideBySide) {
+      g.pushMatrix();
+      g.translate(1, -0.1, -2);
+      g.draw(mQuadR);
+      g.popMatrix();
+    } else {
+      g.pushMatrix();
+
+      g.translate(0, 0, -4);
+      g.scale(mVideoTexture.width() / (float)mVideoTexture.height(), 1, 1);
+      g.draw(mQuadL);
+      g.popMatrix();
+    }
+    mVideoTexture.unbind();
   }
 }
 

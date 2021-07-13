@@ -44,7 +44,7 @@ namespace al {
 
 class VideoFileReader {
 public:
-  typedef enum { SYNC_AUDIO, SYNC_VIDEO, SYNC_INTERNAL, SYNC_AUTO } SyncMode;
+  typedef enum { SYNC_AUDIO, SYNC_VIDEO, SYNC_INTERNAL, SYNC_FREE } SyncMode;
 
   typedef enum { PLAY_ONESHOT, PLAY_LOOPING } PlayMode;
 
@@ -82,7 +82,7 @@ public:
    * audio track is present in the file, SYNC_AUDIO is used. If no audio is
    * present SYNC_INTERNAL is used.
    */
-  VideoFileReader(const char *path, SyncMode syncMode = SYNC_AUTO,
+  VideoFileReader(const char *path, SyncMode syncMode = SYNC_FREE,
                   int outputWidth = -1, int outputHeight = -1);
 
   virtual ~VideoFileReader() { cleanup(); }
@@ -225,7 +225,8 @@ private:
 
   // Audio stream
   AVCodecContext *mAudioCodecContext;
-  bool mAudioCodecContextOpened; // True if audio stream opened succesfully
+  bool mAudioCodecContextOpened{
+      false}; // True if audio stream opened succesfully
   AVCodec *mAudioCodec;
   int mAudioStreamIndex; // Index to audio stream
   int mSampleRate;
@@ -264,7 +265,7 @@ class VideoTexture : public Texture {
   // TODO should we inherit from VideoFileReader
 public:
   bool init(const char *path,
-            VideoFileReader::SyncMode syncMode = VideoFileReader::SYNC_AUTO,
+            VideoFileReader::SyncMode syncMode = VideoFileReader::SYNC_FREE,
             int outputWidth = -1, int outputHeight = -1);
 
   bool initialized() { return mVideoReader != nullptr; }
