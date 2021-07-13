@@ -5,6 +5,17 @@
 
 using namespace al;
 
+MyApp::MyApp() {
+  mPlaying = false;
+
+  // remove simulation domain to replace it with simulation domain that runs
+  // post onDraw()
+  mOpenGLGraphicsDomain->removeSubDomain(simulationDomain());
+  mSimulationDomain =
+      mOpenGLGraphicsDomain->newSubDomain<StateDistributionDomain<SharedState>>(
+          false);
+}
+
 void MyApp::onCreate() {
   //	auto& s = shader();
   //    s.begin();
@@ -14,6 +25,15 @@ void MyApp::onCreate() {
   mVideoTexture.init(
       "C:/Users/Andres/Documents/Zoom/2021-04-28 19.26.43 Andres Cabrera "
       "Perez's Zoom Meeting 85001728190/zoom_0.mp4");
+  // Set sampling rate and channel count from video
+  audioDomain()->stop();
+  audioDomain()->audioIO().framesPerSecond(mVideoTexture.audioSampleRate());
+  audioDomain()->audioIO().channelsOut(mVideoTexture.audioNumChannels());
+  audioDomain()->start();
+
+  //  mVideoTexture.print();
+  mVideoTexture.setPlayMode(VideoFileReader::PLAY_ONESHOT);
+
   if (mSideBySide) {
     // TODO fix side by side
     //    mQuadL.reset();
@@ -48,14 +68,11 @@ void MyApp::onCreate() {
     mQuadL.vertex(1, -1);
 
     // Add texture coordinates
-    mQuadL.texCoord(0, 1);
     mQuadL.texCoord(0, 0);
-    mQuadL.texCoord(1, 1);
+    mQuadL.texCoord(0, 1);
     mQuadL.texCoord(1, 0);
+    mQuadL.texCoord(1, 1);
   }
-
-  //  mVideoTexture.print();
-  mVideoTexture.setPlayMode(VideoFileReader::PLAY_ONESHOT);
 
   state().frameNum = 0;
 }
@@ -92,29 +109,27 @@ void MyApp::onAnimate(al_sec dt) {
 void MyApp::onDraw(Graphics &g) {
   g.clear();
   if (isPrimary()) {
-    //    g.texture();
+    g.texture();
     //    g.pushMatrix();
     //    g.translate(0, 0.1, -3);
     //    g.draw(mQuadL);
     //    g.popMatrix();
+    mVideoTexture.bind();
     mVideoTexture.readFrame();
     if (mSideBySide) {
-      mVideoTexture.bind();
       g.pushMatrix();
       g.translate(1, -0.1, -2);
       g.draw(mQuadR);
       g.popMatrix();
-      mVideoTexture.unbind();
     } else {
-      mVideoTexture.bind();
       g.pushMatrix();
-      //      g.rotate(-90, 0, 1, 0);
-      //	g.scale(0.3);
-      mVideoTexture.bind();
+
+      g.translate(0, 0, -4);
+      g.scale(mVideoTexture.width() / (float)mVideoTexture.height(), 1, 1);
       g.draw(mQuadL);
-      mVideoTexture.unbind();
       g.popMatrix();
     }
+    mVideoTexture.unbind();
     //    std::cout << state().frameNum - mVideoTexture.currentFrame() <<
     //    std::endl;
   }
@@ -122,6 +137,9 @@ void MyApp::onDraw(Graphics &g) {
 
 void MyApp::onSound(AudioIOData &io) {
   if (isPrimary()) {
+    if (!mVideoTexture.initialized()) {
+      return;
+    }
     float buffer[8192];
     int numFileChnls = 2;
     for (int i = 0; i < numFileChnls; i++) {

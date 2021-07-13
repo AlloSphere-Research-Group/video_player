@@ -13,7 +13,7 @@ namespace al {
 
 class MyApp : public DistributedAppWithState<SharedState> {
 public:
-  MyApp() { mPlaying = false; }
+  MyApp();
 
   virtual ~MyApp() {}
 

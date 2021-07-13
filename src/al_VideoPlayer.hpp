@@ -18,6 +18,7 @@ University of California. All rights reserved.
 extern "C" {
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
+#include <libavutil/imgutils.h>
 #include <libavutil/pixfmt.h>
 #include <libswscale/swscale.h>
 }
@@ -106,6 +107,9 @@ public:
 
   virtual double duration() { return mDuration; }
 
+  virtual int audioSampleRate() { return mSampleRate; }
+  virtual int audioNumChannels() { return mAudioChannels; }
+
   int currentFrame() { return mCurrentVideoFrame.load(); }
 
   ///
@@ -147,11 +151,11 @@ public:
   ///
   /// \return pointer to frame pixel data
   ///
-  virtual const void *pixels() const {
+  virtual uint8_t *pixels() const {
     if (assigned_buffer_) {
       return assigned_buffer_;
     } else {
-      return mPictureBuffer[mPicBufRead];
+      return (uint8_t *)mPictureBuffer[mPicBufRead].data();
     }
   }
 
@@ -246,7 +250,7 @@ private:
   std::atomic<bool> mRunning;
 
   SingleRWRingBuffer mAudioBuffer[2] = {{8192 * 8}, {8192 * 8}};
-  std::vector<uint8_t *> mPictureBuffer;
+  std::vector<std::vector<uint8_t>> mPictureBuffer;
   int mPicBufSize;
   int mPicBufWrite = 1, mPicBufRead = 0;
 };
@@ -263,6 +267,8 @@ public:
             VideoFileReader::SyncMode syncMode = VideoFileReader::SYNC_AUTO,
             int outputWidth = -1, int outputHeight = -1);
 
+  bool initialized() { return mVideoReader != nullptr; }
+
   void start() { mVideoReader->start(); }
 
   void stop() { mVideoReader->stop(); }
@@ -270,6 +276,9 @@ public:
   int width() { return mVideoReader->width(); }
 
   int height() { return mVideoReader->height(); }
+
+  int audioSampleRate() { return mVideoReader->audioSampleRate(); }
+  int audioNumChannels() { return mVideoReader->audioNumChannels(); }
 
   void readFrame(uint64_t framenum = UINT64_MAX);
 

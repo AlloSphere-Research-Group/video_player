@@ -68,6 +68,9 @@ VideoFileReader::VideoFileReader(const char *path,
         mSampleRate = mAudioCodecContext->sample_rate;
         mAudioChannels = mAudioCodecContext->channels;
         mAudioCodecContextOpened = true;
+        //        std::cout << " sr: " << mSampleRate << " channels: " <<
+        //        mAudioChannels
+        //                  << std::endl;
       }
     }
     if (mSyncMode == SYNC_AUDIO && !mAudioCodec) {
@@ -144,9 +147,9 @@ void VideoFileReader::cleanup() {
     mReaderThread->join();
   }
 
-  for (auto picBuffer : mPictureBuffer) {
-    delete picBuffer;
-  }
+  //  for (auto picBuffer : mPictureBuffer) {
+  //    delete picBuffer;
+  //  }
 }
 
 bool VideoFileReader::nextFrame() {
@@ -278,7 +281,7 @@ void VideoFileReader::intializeVideoStream() {
 
   mPictureBuffer.resize(mPicBufSize);
   for (auto &picBuffer : mPictureBuffer) {
-    picBuffer = new uint8_t[num_bytes_];
+    picBuffer.resize(num_bytes_);
   }
 
   if (mOutputHeight == -1) {
@@ -313,9 +316,10 @@ void VideoFileReader::readFunction(VideoFileReader *obj) {
     std::unique_lock<std::mutex> lk(obj->mLock);
     bool videoFinished = false;
     obj->mCondVar.wait(lk);
-    if (obj->mAudioBuffer[0].writeSpace() < 8193) {
-      continue;
-    }
+    //    if (obj->mAudioBuffer[0].writeSpace() < 8193) {
+    //      // Audio has not been consumed
+    //      continue;
+    //    }
     int seekFrame = obj->mSeek.load();
     if (seekFrame >= 0) { // Process seek request
       if (avformat_seek_file(obj->mFormatContext, obj->mVideoStreamIndex, 0,
@@ -340,10 +344,11 @@ void VideoFileReader::readFunction(VideoFileReader *obj) {
     while (obj->mAudioBuffer[0].writeSpace() > 8192 && !videoFinished) {
       if (av_read_frame(obj->mFormatContext, &packet) >= 0) {
         if (packet.stream_index == obj->mVideoStreamIndex) {
+          obj->readVideoFromPacket(obj, packet, frame);
           if (!obj->assigned_buffer_) {
             std::cout << "Decode into index " << obj->mPicBufWrite << std::endl;
             avpicture_fill((AVPicture *)obj->frame_rgb_,
-                           obj->mPictureBuffer[obj->mPicBufWrite],
+                           obj->mPictureBuffer[obj->mPicBufWrite].data(),
                            AV_PIX_FMT_RGBA, obj->mPictureCodecContext->width,
                            obj->mPictureCodecContext->height);
             int newIndex = obj->mPicBufWrite + 1;
@@ -352,11 +357,9 @@ void VideoFileReader::readFunction(VideoFileReader *obj) {
             }
             obj->mPicBufWrite = newIndex;
           }
-          obj->readVideoFromPacket(obj, packet, frame);
-          if (!obj->assigned_buffer_) {
-          }
-          //                        obj->frames_buffer->write((const char
-          //                        *)obj->frame_rgb_->data, obj->num_bytes_);
+          //          if (!obj->assigned_buffer_) {
+          //          }
+
         } else if (packet.stream_index == obj->mAudioStreamIndex &&
                    obj->mAudioCodecContext) {
           while (packet.size > 0) { // Audio frames can span multiple packets
@@ -538,6 +541,9 @@ void VideoTexture::readFrame(uint64_t framenum) {
   }
   if (mVideoReader->nextFrame()) {
 
+    for (auto i = 0; i < 300000; i++) {
+      mVideoReader->pixels()[i] = 255;
+    }
     this->submit(mVideoReader->pixels());
   }
 }
