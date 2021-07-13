@@ -11,6 +11,9 @@ void MyApp::onCreate() {
   //    s.uniform("texture", 1.0);
   //    s.uniform("lighting", 0.1);
   //    s.end();
+  mVideoTexture.init(
+      "C:/Users/Andres/Documents/Zoom/2021-04-28 19.26.43 Andres Cabrera "
+      "Perez's Zoom Meeting 85001728190/zoom_0.mp4");
   if (mSideBySide) {
     mQuadL.reset();
     mQuadL.primitive(Mesh::TRIANGLES);
@@ -84,7 +87,7 @@ void MyApp::onAnimate(al_sec dt) {
 }
 
 void MyApp::onDraw(Graphics &g) {
-
+  g.clear();
   if (isPrimary()) {
 
     mVideoTexture.bind();

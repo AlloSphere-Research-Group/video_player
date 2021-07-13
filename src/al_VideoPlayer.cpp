@@ -516,15 +516,16 @@ void VideoFileReader::ffmpeg_initialize() {
 
 // -------------------------------------------
 
-VideoTexture::VideoTexture(std::string fileName,
-                           VideoFileReader::SyncMode syncMode, int textureWidth,
-                           int textureHeight)
-    : mVideoReader(fileName.c_str(), syncMode, textureWidth, textureHeight) {
-  //  this->target(Texture::TEXTURE_2D);
-  this->resize(mVideoReader.width(), mVideoReader.height());
-  //  this->allocate();
+void setVideoFile(const char *filename) {}
 
-  //    mVideoReader.setPixelBuffer(this->data());
+bool VideoTexture::init(const char *path, VideoFileReader::SyncMode syncMode,
+                        int outputWidth, int outputHeight) {
+
+  mVideoReader = std::make_unique<VideoFileReader>(path, syncMode, outputWidth,
+                                                   outputHeight);
+  this->resize(mVideoReader->width(), mVideoReader->height());
+  // TODO return false on failure
+  return true;
 }
 
 void VideoTexture::readFrame(uint64_t framenum) {
@@ -532,22 +533,23 @@ void VideoTexture::readFrame(uint64_t framenum) {
   // frame rate
   if (framenum != UINT64_MAX) {
     if (framenum >= 0 && framenum != currentFrame()) {
-      mVideoReader.seek(framenum);
+      mVideoReader->seek(framenum);
     }
   }
-  if (mVideoReader.nextFrame()) {
+  if (mVideoReader->nextFrame()) {
     // FIXME we need to cpy the data to the texture
-    //    memcpy(this->array().data.ptr, mVideoReader.pixels(),
-    //           mVideoReader.width() * mVideoReader.height() * sizeof(uint8_t)
+    //    memcpy(this->array().data.ptr, mVideoReader->pixels(),
+    //           mVideoReader->width() * mVideoReader->height() *
+    //           sizeof(uint8_t)
     //           * 4);
     //    this->dirty();
   }
 }
 
 int VideoTexture::readAudio(int channel, float *buffer, int numElements) {
-  return mVideoReader.readAudio(channel, buffer, numElements);
+  return mVideoReader->readAudio(channel, buffer, numElements);
 }
 
-void VideoTexture::seek(int frame) { mVideoReader.seek(frame); }
+void VideoTexture::seek(int frame) { mVideoReader->seek(frame); }
 
 // -------------------------------------

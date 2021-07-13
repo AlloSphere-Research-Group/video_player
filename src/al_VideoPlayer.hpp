@@ -257,18 +257,19 @@ private:
 ///
 ///
 class VideoTexture : public Texture {
+  // TODO should we inherit from VideoFileReader
 public:
-  VideoTexture(std::string fileName = "test.avi",
-               VideoFileReader::SyncMode syncMode = VideoFileReader::SYNC_AUTO,
-               int textureWidth = -1, int textureHeight = -1);
+  bool init(const char *path,
+            VideoFileReader::SyncMode syncMode = VideoFileReader::SYNC_AUTO,
+            int outputWidth = -1, int outputHeight = -1);
 
-  void start() { mVideoReader.start(); }
+  void start() { mVideoReader->start(); }
 
-  void stop() { mVideoReader.stop(); }
+  void stop() { mVideoReader->stop(); }
 
-  int width() { return mVideoReader.width(); }
+  int width() { return mVideoReader->width(); }
 
-  int height() { return mVideoReader.height(); }
+  int height() { return mVideoReader->height(); }
 
   void readFrame(uint64_t framenum = UINT64_MAX);
 
@@ -276,14 +277,14 @@ public:
 
   void seek(int frame);
 
-  int currentFrame() { return mVideoReader.currentFrame(); }
+  int currentFrame() { return mVideoReader->currentFrame(); }
 
   void setPlayMode(VideoFileReader::PlayMode mode) {
-    mVideoReader.setPlayMode(mode);
+    mVideoReader->setPlayMode(mode);
   }
 
 private:
-  VideoFileReader mVideoReader;
+  std::unique_ptr<VideoFileReader> mVideoReader;
 };
 
 } // namespace al

@@ -28,8 +28,7 @@ private:
   //	VideoTexturer mVideoTexture {"/data/andres/PlieguesALTh264.mov"};
   //    VideoTexturer mVideoTexture {"/data/andres/Pliegues1024.mp4"};
   //    VideoTexture mVideoTexture {"/home/andres/Probably-3mins-final.mp4"};
-  VideoTexture mVideoTexture{"/home/andres/Documents/07 Proyectos y "
-                             "trabajos/06 Musica/geminiflux/CCT1.mp4"};
+  VideoTexture mVideoTexture;
   //    VideoTexturer mVideoTexture
   //    {"/media/andres/LaCie_Mac_Only/_AlloArchive/AlloSphere
   //    Archive_032714/1-New-UK-KucheraMorin.mov", true}; VideoTexturer
