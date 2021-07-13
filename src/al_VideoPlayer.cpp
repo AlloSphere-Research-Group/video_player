@@ -537,12 +537,8 @@ void VideoTexture::readFrame(uint64_t framenum) {
     }
   }
   if (mVideoReader->nextFrame()) {
-    // FIXME we need to cpy the data to the texture
-    //    memcpy(this->array().data.ptr, mVideoReader->pixels(),
-    //           mVideoReader->width() * mVideoReader->height() *
-    //           sizeof(uint8_t)
-    //           * 4);
-    //    this->dirty();
+
+    this->submit(mVideoReader->pixels());
   }
 }
 

@@ -9,6 +9,8 @@ using namespace al;
 
 int main() {
   MyApp app;
+  app.fps(25);
   app.dimensions(600, 400);
   app.start();
+  return 0;
 }

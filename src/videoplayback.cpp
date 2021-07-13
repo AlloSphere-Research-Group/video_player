@@ -15,46 +15,49 @@ void MyApp::onCreate() {
       "C:/Users/Andres/Documents/Zoom/2021-04-28 19.26.43 Andres Cabrera "
       "Perez's Zoom Meeting 85001728190/zoom_0.mp4");
   if (mSideBySide) {
-    mQuadL.reset();
-    mQuadL.primitive(Mesh::TRIANGLES);
-    mQuadL.vertex(-1, -1, 0);
-    mQuadL.texCoord(0, 1);
-    mQuadL.vertex(1, -1, 0);
-    mQuadL.texCoord(0.5, 1);
-    mQuadL.vertex(1, 1, 0);
-    mQuadL.texCoord(0.5, 0);
-    mQuadL.vertex(-1, 1, 0);
-    mQuadL.texCoord(0, 0);
+    // TODO fix side by side
+    //    mQuadL.reset();
+    //    mQuadL.primitive(Mesh::TRIANGLES);
+    //    mQuadL.vertex(-1, -1, 0);
+    //    mQuadL.texCoord(0, 1);
+    //    mQuadL.vertex(1, -1, 0);
+    //    mQuadL.texCoord(0.5, 1);
+    //    mQuadL.vertex(1, 1, 0);
+    //    mQuadL.texCoord(0.5, 0);
+    //    mQuadL.vertex(-1, 1, 0);
+    //    mQuadL.texCoord(0, 0);
 
-    mQuadR.reset();
-    mQuadR.primitive(Mesh::TRIANGLES);
-    mQuadR.vertex(-1, -1, 0);
-    mQuadR.texCoord(0.5, 1);
-    mQuadR.vertex(1, -1, 0);
-    mQuadR.texCoord(1, 1);
-    mQuadR.vertex(1, 1, 0);
-    mQuadR.texCoord(1, 0);
-    mQuadR.vertex(-1, 1, 0);
-    mQuadR.texCoord(0.5, 0);
+    //    mQuadR.reset();
+    //    mQuadR.primitive(Mesh::TRIANGLES);
+    //    mQuadR.vertex(-1, -1, 0);
+    //    mQuadR.texCoord(0.5, 1);
+    //    mQuadR.vertex(1, -1, 0);
+    //    mQuadR.texCoord(1, 1);
+    //    mQuadR.vertex(1, 1, 0);
+    //    mQuadR.texCoord(1, 0);
+    //    mQuadR.vertex(-1, 1, 0);
+    //    mQuadR.texCoord(0.5, 0);
   } else {
+
     mQuadL.reset();
-    mQuadL.primitive(Mesh::TRIANGLES);
-    mQuadL.vertex(-1, -1, 0);
+
+    mQuadL.primitive(Mesh::TRIANGLE_STRIP);
+    mQuadL.vertex(-1, 1);
+    mQuadL.vertex(-1, -1);
+    mQuadL.vertex(1, 1);
+    mQuadL.vertex(1, -1);
+
+    // Add texture coordinates
     mQuadL.texCoord(0, 1);
-    mQuadL.vertex(1, -1, 0);
-    mQuadL.texCoord(1, 1);
-    mQuadL.vertex(1, 1, 0);
-    mQuadL.texCoord(1, 0);
-    mQuadL.vertex(-1, 1, 0);
     mQuadL.texCoord(0, 0);
+    mQuadL.texCoord(1, 1);
+    mQuadL.texCoord(1, 0);
   }
 
   //  mVideoTexture.print();
   mVideoTexture.setPlayMode(VideoFileReader::PLAY_ONESHOT);
 
   state().frameNum = 0;
-  // TODO set fps according to video file
-  //	Window::fps(30);
 }
 
 void MyApp::onAnimate(al_sec dt) {
@@ -89,22 +92,23 @@ void MyApp::onAnimate(al_sec dt) {
 void MyApp::onDraw(Graphics &g) {
   g.clear();
   if (isPrimary()) {
-
-    mVideoTexture.bind();
-    g.pushMatrix();
-    g.translate(-1, 0.1, -2);
-    g.draw(mQuadL);
-    g.popMatrix();
+    //    g.texture();
+    //    g.pushMatrix();
+    //    g.translate(0, 0.1, -3);
+    //    g.draw(mQuadL);
+    //    g.popMatrix();
+    mVideoTexture.readFrame();
     if (mSideBySide) {
+      mVideoTexture.bind();
       g.pushMatrix();
       g.translate(1, -0.1, -2);
       g.draw(mQuadR);
       g.popMatrix();
       mVideoTexture.unbind();
     } else {
-      mVideoTexture.readFrame();
+      mVideoTexture.bind();
       g.pushMatrix();
-      g.rotate(-90, 0, 1, 0);
+      //      g.rotate(-90, 0, 1, 0);
       //	g.scale(0.3);
       mVideoTexture.bind();
       g.draw(mQuadL);
