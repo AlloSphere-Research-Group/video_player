@@ -2,7 +2,7 @@
 #define AL_VIDEOAPP_HPP
 
 #include "al/app/al_DistributedApp.hpp"
-#include "al_VideoPlayer.hpp"
+#include "al_VideoReader.hpp"
 
 typedef struct {
   int frameNum;
@@ -22,7 +22,7 @@ public:
   virtual void onDraw(Graphics &gl) override;
   virtual void onSound(AudioIOData &io) override;
   // virtual bool onKeyDown(const Keyboard &k) override;
-  virtual bool onExit() override;
+  virtual void onExit() override { videoReader.close(); }
 
 private:
   Texture tex;
