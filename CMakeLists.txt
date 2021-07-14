@@ -7,12 +7,12 @@ set(APP_NAME app)
 
 # path to main source file
 add_executable(${APP_NAME}
-    src/videoplayback.hpp
-    src/al_VideoPlayer.hpp
-
-    src/main.cpp
-    src/videoplayback.cpp
-    src/al_VideoPlayer.cpp)
+               src/main.cpp
+               src/al_VideoApp.hpp
+               src/al_VideoApp.cpp
+               src/al_VideoReader.hpp
+               src/al_VideoReader.cpp)
+               # src/test.cpp)
 
 # add allolib as a subdirectory to the project
 add_subdirectory(allolib)
@@ -27,8 +27,8 @@ endif()
 # link allolib to project
 target_link_libraries(${APP_NAME} PRIVATE al)
 
-set(FFMPEG_ROOT "C:\\Users\\Andres\\source\\repos\\ffmpeg-n4.4-78-g031c0cb0b4-win64-gpl-shared-4.4" CACHE STRING "Path to FFMPEG lib and include directories")
-# set(FFMPEG_ROOT "/usr/local/" CACHE STRING "Path to FFMPEG lib and include directories")
+# set(FFMPEG_ROOT "C:\\Users\\Andres\\source\\repos\\ffmpeg-n4.4-78-g031c0cb0b4-win64-gpl-shared-4.4" CACHE STRING "Path to FFMPEG lib and include directories")
+set(FFMPEG_ROOT "/usr/local/" CACHE STRING "Path to FFMPEG lib and include directories")
 # set(FFMPEG_ROOT "/Users/cannedstar/code/ffmpeg" CACHE STRING "Path to FFMPEG lib and include directories")
 
 # FFMPEG
