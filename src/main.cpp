@@ -1,15 +1,12 @@
 #include <iostream>
 
-#include "al/app/al_App.hpp"
-#include "al/graphics/al_Shapes.hpp"
-
-#include "videoplayback.hpp"
+#include "al_VideoApp.hpp"
 
 using namespace al;
 
 int main() {
-  MyApp app;
-  app.fps(25);
+  VideoApp app;
+  app.title("Video Player");
   app.dimensions(600, 400);
   app.start();
   return 0;
