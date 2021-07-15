@@ -1,5 +1,7 @@
 #include "al_VideoApp.hpp"
 
+#include "al/graphics/al_Font.hpp"
+
 using namespace al;
 
 VideoApp::VideoApp() {
@@ -69,18 +71,26 @@ void VideoApp::onCreate() {
 void VideoApp::onAnimate(al_sec dt) {
   if (mPlaying) {
     tex.submit(videoReader.getFrame());
+    state().frameNum = videoReader.getCurrentFrameNumber();
   }
 }
 
 void VideoApp::onDraw(Graphics &g) {
-  if (mPlaying) {
+  if (isPrimary()) {
+    if (mPlaying) {
+      g.clear();
+      g.viewport(0, 0, fbWidth(), fbHeight());
+      g.camera(Viewpoint::IDENTITY);
+      tex.bind();
+      g.texture();
+      g.draw(quad);
+      tex.unbind();
+    }
+  } else {
+    // Renderer
     g.clear();
-    g.viewport(0, 0, fbWidth(), fbHeight());
-    g.camera(Viewpoint::IDENTITY);
-    tex.bind();
-    g.texture();
-    g.draw(quad);
-    tex.unbind();
+    FontRenderer::render(g, std::to_string(state().frameNum).c_str(),
+                         {-1, 1, -3});
   }
 }
 

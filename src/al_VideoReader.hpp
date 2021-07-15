@@ -51,6 +51,7 @@ public:
   bool readFrame();
 
   uint8_t *getFrame();
+  uint16_t getCurrentFrameNumber() { return currentFrame; }
 
   void readAudioBuffer();
 
@@ -76,6 +77,8 @@ private:
   double r_fps;
   int audio_sample_rate;
   int audio_channels;
+
+  uint64_t currentFrame{0};
 
   int videoStream;
   int audioStream;

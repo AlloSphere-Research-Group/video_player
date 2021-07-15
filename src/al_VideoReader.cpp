@@ -60,6 +60,7 @@ bool VideoReader::load(const char *url) {
     std::cerr << "Could not open video codec" << std::endl;
     return false;
   }
+  currentFrame = 0;
 
   if (audioStream == -1) {
     std::cerr << "Could not find audio stream" << std::endl;
@@ -206,6 +207,7 @@ bool VideoReader::readFrame() {
       }
 
       // successfully got packet
+      currentFrame++;
       return true;
     } else if (pPacket->stream_index == audioStream) {
       packet_queue_put(&audioq, pPacket);
