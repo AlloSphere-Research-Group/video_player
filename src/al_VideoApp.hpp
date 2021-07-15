@@ -30,7 +30,7 @@ private:
 
   VideoReader videoReader;
 
-  bool mPlaying;
+  bool mPlaying{false};
 };
 
 } // namespace al

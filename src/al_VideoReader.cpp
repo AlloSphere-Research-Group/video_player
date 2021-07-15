@@ -68,6 +68,10 @@ bool VideoReader::load(const char *url) {
     return false;
   }
 
+  for (int i = 0; i < audio_channels; i++) {
+    mAudioBuffer.emplace_back(SingleRWRingBuffer{8192 * 8});
+  }
+
   return true;
 }
 

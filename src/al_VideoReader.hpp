@@ -97,7 +97,7 @@ private:
   PacketQueue videoq;
   PacketQueue audioq;
 
-  SingleRWRingBuffer mAudioBuffer[2] = {{8192 * 8}, {8192 * 8}};
+  std::vector<SingleRWRingBuffer> mAudioBuffer;
 
   int quit;
 

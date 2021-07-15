@@ -27,18 +27,11 @@ void VideoApp::onCreate() {
   //                   "unreal-village-omnistereo.mp4";
 
   // load video file
+  audioDomain()->stop();
   if (!videoReader.load(url)) {
     std::cerr << "Error loading video file" << std::endl;
     quit();
   }
-
-  // configure audio IO
-  audioDomain()->stop();
-  audioDomain()->audioIO().framesPerSecond(videoReader.audioSampleRate());
-  audioDomain()->audioIO().channelsOut(videoReader.audioNumChannels());
-
-  // start audio
-  audioDomain()->start();
 
   // generate texture
   tex.filter(Texture::LINEAR);
@@ -66,6 +59,11 @@ void VideoApp::onCreate() {
   fps(videoReader.fps());
 
   mPlaying = true;
+
+  // start audio
+  audioDomain()->audioIO().framesPerSecond(videoReader.audioSampleRate());
+  audioDomain()->audioIO().channelsOut(videoReader.audioNumChannels());
+  audioDomain()->start();
 }
 
 void VideoApp::onAnimate(al_sec dt) {
