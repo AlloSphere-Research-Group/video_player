@@ -241,7 +241,7 @@ uint8_t *VideoReader::getFrame() {
   sws_scale(sws_ctx, (uint8_t const *const *)pFrame->data, pFrame->linesize, 0,
             pCodecCtx->height, pFrameRGB->data, pFrameRGB->linesize);
 
-  return buffer;
+  return (uint8_t *)*pFrameRGB->extended_data; // same as data[0]
 }
 
 void VideoReader::readAudioBuffer() {

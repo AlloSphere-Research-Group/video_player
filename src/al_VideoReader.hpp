@@ -26,6 +26,8 @@ typedef struct PacketQueue {
   std::condition_variable cond;
 } PacketQueue;
 
+// queue structure to store video
+
 class VideoReader {
 public:
   VideoReader();
