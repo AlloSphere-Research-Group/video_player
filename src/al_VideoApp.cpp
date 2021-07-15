@@ -15,7 +15,7 @@ VideoApp::VideoApp() {
           false);
 }
 
-void VideoApp::onInit() { videoReader.init(); }
+void VideoApp::onInit() {}
 
 void VideoApp::onCreate() {
   // url of video file
@@ -27,6 +27,8 @@ void VideoApp::onCreate() {
   //                   "3DH-Take1-Side-By-Side-4000x2000.mp4";
   // const char *url = "/Users/cannedstar/code/video_player/data/"
   //                   "unreal-village-omnistereo.mp4";
+  // const char *url = "/Users/cannedstar/code/video_player/data/"
+  //                   "LastWhispers_040719_ambix_360.mp4";
 
   // load video file
   audioDomain()->stop();

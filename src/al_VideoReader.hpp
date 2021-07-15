@@ -26,7 +26,7 @@ typedef struct PacketQueue {
   std::condition_variable cond;
 } PacketQueue;
 
-// queue structure to store video
+// queue structure to store video frames
 
 class VideoReader {
 public:
@@ -40,13 +40,13 @@ public:
 
   bool stream_component_open(int stream_index);
 
-  int width() { return video_codec_width; }
+  int width() { return video_width; }
 
-  int height() { return video_codec_height; }
+  int height() { return video_height; }
 
-  double fps() { return r_fps; }
+  double fps() { return video_fps; }
 
-  int audioSampleRate() { return audio_sample_rate; }
+  int audioSampleRate() { return audio_sampleRate; }
 
   int audioNumChannels() { return audio_channels; }
 
@@ -57,9 +57,9 @@ public:
 
   void readAudioBuffer();
 
-  SingleRWRingBuffer *getAudioBuffer(int i) { return &(mAudioBuffer[i]); }
+  SingleRWRingBuffer *getAudioBuffer(int i) { return &(audio_buffer[i]); }
 
-  int audio_decode_frame(AVCodecContext *aCodecCtx);
+  int audio_decode_frame();
 
   void packet_queue_init(PacketQueue *pq);
 
@@ -72,41 +72,52 @@ public:
   void cleanup();
 
 private:
+  // ** File I/O Context **
   AVFormatContext *pFormatCtx;
 
-  int video_codec_width;
-  int video_codec_height;
-  double r_fps;
-  int audio_sample_rate;
+  // ** Audio Stream **
+  int audio_st_idx;
+  AVStream *audio_st;
+  AVCodecContext *audio_ctx;
+  PacketQueue audioq;
+  std::vector<SingleRWRingBuffer> audio_buffer;
+  AVFrame *audio_frame;
+  AVPacket *audio_pkt;
+
+  int audio_sampleRate;
   int audio_channels;
 
+  // ** Video Stream **
+  int video_st_idx;
+  AVStream *video_st;
+  AVCodecContext *video_ctx;
+  PacketQueue videoq;
+  struct SwsContext *sws_ctx;
+
+  // add picture queue stuff
+
+  int video_width;
+  int video_height;
+  double video_fps;
+
+  // ** Threads **
+  std::thread *decode_thread;
+  std::thread *video_thread;
+
+  // ** Input file name **
+  char filename[1024] = {0};
+
+  // ** Global Quit Flag **
+  int quit;
+
+  // todo: remove
   uint64_t currentFrame{0};
-
-  int videoStream;
-  int audioStream;
-
-  AVCodecContext *pCodecCtx;
-  AVCodecContext *aCodecCtx;
-
   AVFrame *pFrame;
   AVFrame *pFrameRGB;
-  AVFrame *aFrame;
 
   uint8_t *buffer;
   int numBytes;
-
-  struct SwsContext *sws_ctx;
   AVPacket *pPacket;
-  AVPacket *aPacket;
-
-  PacketQueue videoq;
-  PacketQueue audioq;
-
-  std::vector<SingleRWRingBuffer> mAudioBuffer;
-
-  int quit;
-
-  std::thread *decode_thread;
 };
 
 #endif // AL_VIDEOREADER_HPP
