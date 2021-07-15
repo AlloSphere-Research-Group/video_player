@@ -196,7 +196,6 @@ bool VideoReader::readFrame() {
       // no more frames. end playback
       return false;
     }
-
     // is this from the video stream?
     if (pPacket->stream_index == videoStream) {
       // send next packet for decoding
@@ -215,7 +214,25 @@ bool VideoReader::readFrame() {
   }
 }
 
-uint8_t *VideoReader::getFrame() {
+uint8_t *VideoReader::getFrame(uint64_t frameNum) {
+
+  if (frameNum == currentFrame) {
+    return nullptr;
+  }
+  if (frameNum != UINT64_MAX && frameNum != currentFrame + 1) {
+    // FIXME seek is not working.
+    // Fluxh mode:
+    // https://libav.org/documentation/doxygen/master/group__lavc__encdec.html
+    //    avcodec_send_packet(pCodecCtx, nullptr);
+    if (av_seek_frame(pFormatCtx, -1, frameNum,
+                      AVSEEK_FLAG_FRAME | AVSEEK_FLAG_BACKWARD) != 0) {
+      std::cerr << "Error seeking to frame " << frameNum << std::endl;
+    }
+    currentFrame = frameNum - 1;
+
+    avcodec_flush_buffers(pCodecCtx);
+  }
+
   // receive frame
   int ret = avcodec_receive_frame(pCodecCtx, pFrame);
 

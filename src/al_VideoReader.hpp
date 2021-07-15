@@ -50,7 +50,7 @@ public:
 
   bool readFrame();
 
-  uint8_t *getFrame();
+  uint8_t *getFrame(uint64_t frameNum = UINT64_MAX);
   uint16_t getCurrentFrameNumber() { return currentFrame; }
 
   void readAudioBuffer();

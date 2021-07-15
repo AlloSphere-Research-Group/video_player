@@ -21,7 +21,7 @@ public:
   virtual void onAnimate(al_sec dt) override;
   virtual void onDraw(Graphics &gl) override;
   virtual void onSound(AudioIOData &io) override;
-  // virtual bool onKeyDown(const Keyboard &k) override;
+  virtual bool onKeyDown(const Keyboard &k) override;
   virtual void onExit() override { videoReader.close(); }
 
 private:

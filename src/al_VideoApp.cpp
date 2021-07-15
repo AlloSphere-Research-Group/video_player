@@ -58,9 +58,11 @@ void VideoApp::onCreate() {
   quad.update();
 
   // set fps
-  fps(videoReader.fps());
+  if (isPrimary()) {
+    fps(videoReader.fps());
+  }
 
-  mPlaying = true;
+  //  mPlaying = true;
 
   // start audio
   audioDomain()->audioIO().framesPerSecond(videoReader.audioSampleRate());
@@ -69,9 +71,24 @@ void VideoApp::onCreate() {
 }
 
 void VideoApp::onAnimate(al_sec dt) {
-  if (mPlaying) {
-    tex.submit(videoReader.getFrame());
-    state().frameNum = videoReader.getCurrentFrameNumber();
+
+  if (isPrimary()) {
+    if (mPlaying) {
+      auto *frame = videoReader.getFrame();
+      if (frame) {
+        tex.submit(frame);
+      }
+      state().frameNum = videoReader.getCurrentFrameNumber();
+    }
+  } else {
+    //    auto *frame = videoReader.getFrame(state().frameNum);
+    uint8_t *frame = nullptr;
+    while (state().frameNum > videoReader.getCurrentFrameNumber()) {
+      frame = videoReader.getFrame();
+    }
+    if (frame) {
+      tex.submit(frame);
+    }
   }
 }
 
@@ -89,8 +106,18 @@ void VideoApp::onDraw(Graphics &g) {
   } else {
     // Renderer
     g.clear();
-    FontRenderer::render(g, std::to_string(state().frameNum).c_str(),
-                         {-1, 1, -3});
+    g.pushMatrix();
+    // Dummy rendering on quad while we map the sphere
+    g.translate(0, 0, -4);
+    g.scale(5);
+    tex.bind();
+    g.texture();
+    g.draw(quad);
+    tex.unbind();
+    g.popMatrix();
+
+    //    FontRenderer::render(g, std::to_string(state().frameNum).c_str(),
+    //                         {-1, 1, -3});
   }
 }
 
@@ -99,6 +126,7 @@ void VideoApp::onSound(AudioIOData &io) {
     videoReader.readAudioBuffer();
 
     float audioBuffer[8192];
+    //    if (isPrimary()) {
 
     for (int i = 0; i < io.channelsOut(); ++i) {
       SingleRWRingBuffer *audioRingBuffer = videoReader.getAudioBuffer(i);
@@ -111,7 +139,17 @@ void VideoApp::onSound(AudioIOData &io) {
         memcpy(io.outBuffer(i), audioBuffer, bytesRead);
       }
     }
+    //    } else {
+
+    //    }
   }
+}
+
+bool VideoApp::onKeyDown(const Keyboard &k) {
+  if (k.key() == ' ') {
+    mPlaying = true;
+  }
+  return true;
 }
 
 // bool VideoApp::onKeyDown(const Keyboard &k) {}
