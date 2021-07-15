@@ -53,6 +53,7 @@ public:
   bool readFrame();
 
   uint8_t *getFrame();
+  uint16_t getCurrentFrameNumber() { return currentFrame; }
 
   void readAudioBuffer();
 
@@ -79,6 +80,8 @@ private:
   int audio_sample_rate;
   int audio_channels;
 
+  uint64_t currentFrame{0};
+
   int videoStream;
   int audioStream;
 
@@ -99,7 +102,7 @@ private:
   PacketQueue videoq;
   PacketQueue audioq;
 
-  SingleRWRingBuffer mAudioBuffer[2] = {{8192 * 8}, {8192 * 8}};
+  std::vector<SingleRWRingBuffer> mAudioBuffer;
 
   int quit;
 
