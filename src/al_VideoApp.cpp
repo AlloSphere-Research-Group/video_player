@@ -89,6 +89,12 @@ void VideoApp::onAnimate(al_sec dt) {
     uint8_t *frame = nullptr;
     while (state().frameNum > videoReader.getCurrentFrameNumber()) {
       frame = videoReader.getFrame();
+      videoReader.readAudioBuffer();
+      for (int inChan = 0; inChan < 4; inChan++) {
+        SingleRWRingBuffer *audioRingBuffer =
+            videoReader.getAudioBuffer(inChan);
+        audioRingBuffer->clear(); // flush buffers
+      }
     }
     if (frame) {
       tex.submit(frame);
@@ -135,46 +141,48 @@ void VideoApp::onSound(AudioIOData &io) {
       assert(io.framesPerBuffer() <= 8192);
       // Read video file audio buffers
       size_t channelBytesRead = 0;
-      for (int inChan = 0; inChan < 4; inChan++) {
-        SingleRWRingBuffer *audioRingBuffer =
-            videoReader.getAudioBuffer(inChan);
-        size_t bytesRead = audioRingBuffer->read(
-            (char *)audioBuffer[inChan], io.framesPerBuffer() * sizeof(float));
-        audioBufferScan[inChan] = audioBuffer[inChan];
-        if (inChan > 0 && channelBytesRead != bytesRead) {
-          std::cerr << "ERROR buffer size mismatch" << std::endl;
-          channelBytesRead = std::min(channelBytesRead, bytesRead);
-        } else {
-          channelBytesRead = bytesRead;
+      if (decodeAmbisonics) {
+        for (int inChan = 0; inChan < 4; inChan++) {
+          SingleRWRingBuffer *audioRingBuffer =
+              videoReader.getAudioBuffer(inChan);
+          size_t bytesRead =
+              audioRingBuffer->read((char *)audioBuffer[inChan],
+                                    io.framesPerBuffer() * sizeof(float));
+
+          // *** notify_one here too
+          audioBufferScan[inChan] = audioBuffer[inChan];
+          if (inChan > 0 && channelBytesRead != bytesRead) {
+            std::cerr << "ERROR audio buffer size mismatch" << std::endl;
+            channelBytesRead = std::min(channelBytesRead, bytesRead);
+          } else {
+            channelBytesRead = bytesRead;
+          }
         }
+        float *outbufs[64];
+        assert(io.channelsOut() <= 64);
+        for (int i = 0; i < io.channelsOut(); ++i) {
+          outbufs[i] = io.outBuffer(i);
+        }
+        ambisonics.decode((float **)outbufs, (const float **)audioBufferScan,
+                          channelBytesRead);
       }
-      float *outbufs[64];
-      assert(io.channelsOut() <= 64);
-      for (int i = 0; i < io.channelsOut(); ++i) {
-        outbufs[i] = io.outBuffer(i);
-      }
-      ambisonics.decode((float **)outbufs, (const float **)audioBufferScan,
-                        channelBytesRead);
+    } else {
     }
-    std::cout << io.outBuffer(0)[0] << std::endl;
   } else { // Not primary
-           //    if (mPlaying && videoReader.hasAudio()) {
-           //      videoReader.readAudioBuffer();
-           //      float audioBuffer[8192];
-           //      for (int i = 0; i < io.channelsOut(); ++i) {
-           //        SingleRWRingBuffer *audioRingBuffer =
-           //        videoReader.getAudioBuffer(i); size_t bytesRead =
-           //        audioRingBuffer->read(
-    //            (char *)audioBuffer, io.framesPerBuffer() * sizeof(float));
 
-    //        // *** notify_one here too
+    //      float audioBuffer[8192];
+    //      for (int i = 0; i < videoReader.; ++i) {
+    //          SingleRWRingBuffer *audioRingBuffer =
+    //          videoReader.getAudioBuffer(i); size_t bytesRead =
+    //          audioRingBuffer->read(
+    //              (char *)audioBuffer, io.framesPerBuffer() * sizeof(float));
 
-    //        if (bytesRead > 0) {
-    //          memcpy(io.outBuffer(i), audioBuffer, bytesRead);
-    //        }
+    //          // *** notify_one here too
+
+    //          if (bytesRead > 0) {
+    //              memcpy(io.outBuffer(i), audioBuffer, bytesRead);
+    //          }
     //      }
-    //    }
-    //    }
   }
 }
 
@@ -195,7 +203,9 @@ void VideoApp::configureAudio() {
   if (videoReader.hasAudio()) {
     audioDomain()->audioIO().framesPerSecond(videoReader.audioSampleRate());
     audioDomain()->audioIO().channelsOut(60);
+    if (videoReader.audioNumChannels() == 4) {
+      // TODO Determine this from metadata
+      decodeAmbisonics = true;
+    }
   }
 }
-
-// bool VideoApp::onKeyDown(const Keyboard &k) {}

@@ -34,6 +34,7 @@ private:
   VideoReader videoReader;
 
   AmbiDecode ambisonics{3, 1, 2, 2};
+  bool decodeAmbisonics{false};
 
   bool mPlaying{false};
 };
