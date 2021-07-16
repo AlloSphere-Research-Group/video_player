@@ -1,6 +1,8 @@
 #include "al_VideoApp.hpp"
 
 #include "al/graphics/al_Font.hpp"
+#include "al/sphere/al_AlloSphereSpeakerLayout.hpp"
+#include "al/sphere/al_SphereUtils.hpp"
 
 using namespace al;
 
@@ -66,14 +68,9 @@ void VideoApp::onCreate() {
     fps(videoReader.fps());
   }
 
-  //  mPlaying = true;
+  configureAudio();
 
   // start audio
-  if (videoReader.hasAudio()) {
-    audioDomain()->audioIO().framesPerSecond(videoReader.audioSampleRate());
-    audioDomain()->audioIO().channelsOut(videoReader.audioNumChannels());
-  }
-
   audioDomain()->start();
 }
 
@@ -129,21 +126,54 @@ void VideoApp::onDraw(Graphics &g) {
 }
 
 void VideoApp::onSound(AudioIOData &io) {
-  if (mPlaying && videoReader.hasAudio()) {
-    videoReader.readAudioBuffer();
-
-    float audioBuffer[8192];
-    for (int i = 0; i < io.channelsOut(); ++i) {
-      SingleRWRingBuffer *audioRingBuffer = videoReader.getAudioBuffer(i);
-      size_t bytesRead = audioRingBuffer->read(
-          (char *)audioBuffer, io.framesPerBuffer() * sizeof(float));
-
-      // *** notify_one here too
-
-      if (bytesRead > 0) {
-        memcpy(io.outBuffer(i), audioBuffer, bytesRead);
+  if (isPrimary()) {
+    if (mPlaying && videoReader.hasAudio()) {
+      videoReader.readAudioBuffer();
+      float audioBuffer[4][8192];
+      float *audioBufferScan[4];
+      assert(io.framesPerBuffer() <= 8192);
+      // Read video file audio buffers
+      size_t channelBytesRead = 0;
+      for (int inChan = 0; inChan < 4; inChan++) {
+        SingleRWRingBuffer *audioRingBuffer =
+            videoReader.getAudioBuffer(inChan);
+        size_t bytesRead = audioRingBuffer->read(
+            (char *)audioBuffer[inChan], io.framesPerBuffer() * sizeof(float));
+        audioBufferScan[inChan] = audioBuffer[inChan];
+        if (inChan > 0 && channelBytesRead != bytesRead) {
+          std::cerr << "ERROR buffer size mismatch" << std::endl;
+          channelBytesRead = std::min(channelBytesRead, bytesRead);
+        } else {
+          channelBytesRead = bytesRead;
+        }
       }
+      float *outbufs[64];
+      assert(io.channelsOut() <= 64);
+      for (int i = 0; i < io.channelsOut(); ++i) {
+        outbufs[i] = io.outBuffer(i);
+      }
+      ambisonics.decode((float **)outbufs, (const float **)audioBufferScan,
+                        channelBytesRead);
     }
+    std::cout << io.outBuffer(0)[0] << std::endl;
+  } else { // Not primary
+           //    if (mPlaying && videoReader.hasAudio()) {
+           //      videoReader.readAudioBuffer();
+           //      float audioBuffer[8192];
+           //      for (int i = 0; i < io.channelsOut(); ++i) {
+           //        SingleRWRingBuffer *audioRingBuffer =
+           //        videoReader.getAudioBuffer(i); size_t bytesRead =
+           //        audioRingBuffer->read(
+    //            (char *)audioBuffer, io.framesPerBuffer() * sizeof(float));
+
+    //        // *** notify_one here too
+
+    //        if (bytesRead > 0) {
+    //          memcpy(io.outBuffer(i), audioBuffer, bytesRead);
+    //        }
+    //      }
+    //    }
+    //    }
   }
 }
 
@@ -152,6 +182,19 @@ bool VideoApp::onKeyDown(const Keyboard &k) {
     mPlaying = true;
   }
   return true;
+}
+
+void VideoApp::configureAudio() {
+  auto sl = AlloSphereSpeakerLayoutExtraThin();
+  if (al::sphere::isSimulatorMachine()) {
+    ambisonics.setSpeakers(sl);
+  } else {
+    ambisonics.setSpeakers(sl);
+  }
+  if (videoReader.hasAudio()) {
+    audioDomain()->audioIO().framesPerSecond(videoReader.audioSampleRate());
+    audioDomain()->audioIO().channelsOut(60);
+  }
 }
 
 // bool VideoApp::onKeyDown(const Keyboard &k) {}
