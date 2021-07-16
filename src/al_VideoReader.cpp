@@ -12,20 +12,14 @@ void VideoReader::init() {
   audio_ctx = nullptr;
   audio_frame = nullptr;
   audio_pkt = nullptr;
-  audio_sampleRate = 0;
-  audio_channels = 0;
 
   video_st_idx = -1;
   video_st = nullptr;
   video_ctx = nullptr;
   sws_ctx = nullptr;
-  pictq.queue.resize(PICTQ_SIZE, nullptr);
   pictq.write_index = 0;
   pictq.read_index = 0;
   pictq.size = 0;
-  video_width = 0;
-  video_height = 0;
-  video_fps = 0;
 
   decode_thread = nullptr;
   video_thread = nullptr;
@@ -33,6 +27,35 @@ void VideoReader::init() {
   global_quit = 0;
 
   currentFrame = 0;
+}
+
+int VideoReader::audioSampleRate() {
+  if (audio_st)
+    return audio_ctx->sample_rate;
+  else {
+    std::cerr << "No audio stream" << std::endl;
+    return 0;
+  }
+}
+
+int VideoReader::audioNumChannels() {
+  if (audio_st)
+    return audio_ctx->channels;
+  else {
+    std::cerr << "No audio stream" << std::endl;
+    return 0;
+  }
+}
+
+int VideoReader::width() { return video_ctx->width; }
+int VideoReader::height() { return video_ctx->height; }
+double VideoReader::fps() {
+  double guess = av_q2d(av_guess_frame_rate(pFormatCtx, video_st, NULL));
+  if (guess == 0) {
+    std::cerr << "Could not guess frame rate" << std::endl;
+    guess = av_q2d(pFormatCtx->streams[video_st_idx]->r_frame_rate);
+  }
+  return guess;
 }
 
 bool VideoReader::load(const char *url) {
@@ -72,7 +95,7 @@ bool VideoReader::load(const char *url) {
   }
 
   if (audio_st_idx == -1) {
-    std::cerr << "Could not find audio stream" << std::endl;
+    // std::cerr << "Could not find audio stream" << std::endl;
   } else if (!stream_component_open(audio_st_idx)) {
     std::cerr << "Could not open audio codec" << std::endl;
     return false;
@@ -117,9 +140,6 @@ bool VideoReader::stream_component_open(int stream_index) {
     audio_st = pFormatCtx->streams[stream_index];
     audio_ctx = codecCtx;
 
-    audio_sampleRate = audio_ctx->sample_rate;
-    audio_channels = audio_ctx->channels;
-
     // allocate audio packet
     audio_pkt = av_packet_alloc();
     if (!audio_pkt) {
@@ -135,7 +155,7 @@ bool VideoReader::stream_component_open(int stream_index) {
     }
 
     // allocate audio buffer
-    for (int i = 0; i < audio_channels; i++) {
+    for (int i = 0; i < audio_ctx->channels; i++) {
       audio_buffer.emplace_back(SingleRWRingBuffer{AUDIO_BUFFER_SIZE});
     }
 
@@ -148,12 +168,6 @@ bool VideoReader::stream_component_open(int stream_index) {
   case AVMEDIA_TYPE_VIDEO: {
     video_st = pFormatCtx->streams[stream_index];
     video_ctx = codecCtx;
-
-    video_width = video_ctx->width;
-    video_height = video_ctx->height;
-
-    // TODO: av_guess_frame_rate
-    video_fps = av_q2d(pFormatCtx->streams[video_st_idx]->r_frame_rate);
 
     // initialize video packet queue
     packet_queue_init(&videoq);
@@ -178,8 +192,8 @@ void VideoReader::start() {
     stop();
   }
 
-  // check if video/audio streams are valid
-  if (video_st != nullptr && audio_st != nullptr) {
+  // check if video streams is valid
+  if (video_st != nullptr) {
     decode_thread = new std::thread(decodeThreadFunction, this);
     video_thread = new std::thread(videoThreadFunction, this);
   }
@@ -266,6 +280,9 @@ void VideoReader::videoThreadFunction(VideoReader *reader) {
   }
 
   bool should_quit = false;
+
+  // resize picture queue
+  reader->pictq.queue.resize(PICTQ_SIZE, nullptr);
 
   // allocate frames in picture queue
   for (int index = 0; index < PICTQ_SIZE; ++index) {
@@ -446,18 +463,21 @@ void VideoReader::gotFrame() {
 }
 
 void VideoReader::readAudioBuffer() {
-  while (audio_buffer[0].writeSpace() > AUDIO_BUFFER_REFRESH_THRESHOLD) {
-    if (global_quit != 0) {
-      return;
-    }
+  if (audio_st) {
+    while (audio_buffer[0].writeSpace() > AUDIO_BUFFER_REFRESH_THRESHOLD) {
+      if (global_quit != 0) {
+        return;
+      }
 
-    // get more audio data
-    if (audio_decode_frame() < 0) {
-      std::cerr << "audio_decode_frame() failed" << std::endl;
-      global_quit = -1;
-      return;
+      // get more audio data
+      if (audio_decode_frame() < 0) {
+        std::cerr << "audio_decode_frame() failed" << std::endl;
+        global_quit = -1;
+        return;
+      }
     }
   }
+  return;
 }
 
 int VideoReader::audio_decode_frame() {
@@ -576,17 +596,21 @@ int VideoReader::packet_queue_get(PacketQueue *pktq, AVPacket *packet,
 }
 
 void VideoReader::cleanup() {
-  // Free the audio frame
-  av_frame_free(&audio_frame);
-  av_free(audio_frame);
+  if (audio_st) {
+    // Free the audio frame
+    av_frame_free(&audio_frame);
+    av_free(audio_frame);
 
-  // Free the audio packet
-  av_packet_unref(audio_pkt);
-  av_packet_free(&audio_pkt);
+    // Free the audio packet
+    av_packet_unref(audio_pkt);
+    av_packet_free(&audio_pkt);
 
-  // Close the codecs
+    // Close the audio codec
+    avcodec_close(audio_ctx);
+  }
+
+  // Close the video codec
   avcodec_close(video_ctx);
-  avcodec_close(audio_ctx);
 
   // Close the video file
   avformat_close_input(&pFormatCtx);
@@ -617,4 +641,5 @@ void VideoReader::stop() {
   cleanup();
 
   audio_buffer.clear();
+  pictq.queue.clear();
 }

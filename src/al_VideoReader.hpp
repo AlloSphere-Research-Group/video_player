@@ -58,15 +58,17 @@ public:
   // start the threads
   void start();
 
+  // file has audio stream
+  bool hasAudio() { return audio_st != nullptr; }
+
   // get audio parameters
-  // TODO: remove local var and pull directly off context
-  int audioSampleRate() { return audio_sampleRate; }
-  int audioNumChannels() { return audio_channels; }
+  int audioSampleRate();
+  int audioNumChannels();
 
   // get video parameters
-  int width() { return video_width; }
-  int height() { return video_height; }
-  double fps() { return video_fps; }
+  int width();
+  int height();
+  double fps();
 
   // get the next frame data
   uint8_t *getFrame();
@@ -123,9 +125,6 @@ private:
   AVFrame *audio_frame;
   AVPacket *audio_pkt;
 
-  int audio_sampleRate;
-  int audio_channels;
-
   // ** Video Stream **
   int video_st_idx;
   AVStream *video_st;
@@ -133,10 +132,6 @@ private:
   PacketQueue videoq;
   struct SwsContext *sws_ctx;
   PictureQueue pictq;
-
-  int video_width;
-  int video_height;
-  double video_fps;
 
   // ** Threads **
   std::thread *decode_thread;
