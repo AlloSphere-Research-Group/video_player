@@ -80,9 +80,9 @@ void VideoApp::onAnimate(al_sec dt) {
       auto *frame = videoReader.getFrame();
       if (frame) {
         tex.submit(frame);
+        state().frameNum = videoReader.getCurrentFrameNumber();
+        videoReader.gotFrame();
       }
-      state().frameNum = videoReader.getCurrentFrameNumber();
-      videoReader.gotFrame();
     }
   } else {
     //    auto *frame = videoReader.getFrame(state().frameNum);
@@ -92,6 +92,7 @@ void VideoApp::onAnimate(al_sec dt) {
     }
     if (frame) {
       tex.submit(frame);
+      videoReader.gotFrame();
     }
   }
 }
