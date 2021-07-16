@@ -19,10 +19,10 @@ void VideoApp::onInit() {}
 
 void VideoApp::onCreate() {
   // url of video file
-  // const char *url =
-  //     "/Users/cannedstar/code/video_player/data/renate-barcelona-driving.mp4";
   const char *url =
-      "/Users/cannedstar/code/video_player/data/Iron_Man-Trailer_HD.mp4";
+      "/Users/cannedstar/code/video_player/data/renate-barcelona-driving.mp4";
+  // const char *url =
+  //     "/Users/cannedstar/code/video_player/data/Iron_Man-Trailer_HD.mp4";
   // const char *url = "/Users/cannedstar/code/video_player/data/"
   //                   "3DH-Take1-Side-By-Side-4000x2000.mp4";
   // const char *url = "/Users/cannedstar/code/video_player/data/"
@@ -36,6 +36,8 @@ void VideoApp::onCreate() {
     std::cerr << "Error loading video file" << std::endl;
     quit();
   }
+
+  videoReader.start();
 
   // generate texture
   tex.filter(Texture::LINEAR);
@@ -67,13 +69,15 @@ void VideoApp::onCreate() {
   //  mPlaying = true;
 
   // start audio
-  audioDomain()->audioIO().framesPerSecond(videoReader.audioSampleRate());
-  audioDomain()->audioIO().channelsOut(videoReader.audioNumChannels());
+  if (videoReader.hasAudio()) {
+    audioDomain()->audioIO().framesPerSecond(videoReader.audioSampleRate());
+    audioDomain()->audioIO().channelsOut(videoReader.audioNumChannels());
+  }
+
   audioDomain()->start();
 }
 
 void VideoApp::onAnimate(al_sec dt) {
-
   if (isPrimary()) {
     if (mPlaying) {
       auto *frame = videoReader.getFrame();
@@ -81,6 +85,7 @@ void VideoApp::onAnimate(al_sec dt) {
         tex.submit(frame);
       }
       state().frameNum = videoReader.getCurrentFrameNumber();
+      videoReader.gotFrame();
     }
   } else {
     //    auto *frame = videoReader.getFrame(state().frameNum);
@@ -124,12 +129,10 @@ void VideoApp::onDraw(Graphics &g) {
 }
 
 void VideoApp::onSound(AudioIOData &io) {
-  if (mPlaying) {
+  if (mPlaying && videoReader.hasAudio()) {
     videoReader.readAudioBuffer();
 
     float audioBuffer[8192];
-    //    if (isPrimary()) {
-
     for (int i = 0; i < io.channelsOut(); ++i) {
       SingleRWRingBuffer *audioRingBuffer = videoReader.getAudioBuffer(i);
       size_t bytesRead = audioRingBuffer->read(
@@ -141,9 +144,6 @@ void VideoApp::onSound(AudioIOData &io) {
         memcpy(io.outBuffer(i), audioBuffer, bytesRead);
       }
     }
-    //    } else {
-
-    //    }
   }
 }
 
