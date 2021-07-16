@@ -22,7 +22,7 @@ public:
   virtual void onDraw(Graphics &gl) override;
   virtual void onSound(AudioIOData &io) override;
   // virtual bool onKeyDown(const Keyboard &k) override;
-  virtual void onExit() override { videoReader.close(); }
+  virtual void onExit() override { videoReader.stop(); }
 
 private:
   Texture tex;

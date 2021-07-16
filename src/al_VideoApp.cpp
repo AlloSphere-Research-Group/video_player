@@ -37,6 +37,8 @@ void VideoApp::onCreate() {
     quit();
   }
 
+  videoReader.start();
+
   // generate texture
   tex.filter(Texture::LINEAR);
   tex.wrap(Texture::REPEAT, Texture::CLAMP_TO_EDGE, Texture::CLAMP_TO_EDGE);
@@ -74,6 +76,7 @@ void VideoApp::onAnimate(al_sec dt) {
   if (mPlaying) {
     tex.submit(videoReader.getFrame());
     state().frameNum = videoReader.getCurrentFrameNumber();
+    videoReader.gotFrame();
   }
 }
 
