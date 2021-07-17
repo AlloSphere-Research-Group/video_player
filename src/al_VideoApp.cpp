@@ -15,6 +15,8 @@ VideoApp::VideoApp() {
   mSimulationDomain =
       mOpenGLGraphicsDomain->newSubDomain<StateDistributionDomain<SharedState>>(
           false);
+
+  audioIO().gain(0.4);
 }
 
 void VideoApp::onInit() {}
@@ -156,7 +158,9 @@ void VideoApp::onSound(AudioIOData &io) {
                                     io.framesPerBuffer() * sizeof(float));
 
           // *** notify_one here too
-          audioBufferScan[inChan] = audioBuffer[inChan];
+          // map from FuMa to ACN (should be determined from file metadata
+          int ambiMap[] = {0, 2, 3, 1};
+          audioBufferScan[inChan] = audioBuffer[ambiMap[inChan]];
           if (inChan > 0 && channelBytesRead != bytesRead) {
             std::cerr << "ERROR audio buffer size mismatch" << std::endl;
             channelBytesRead = std::min(channelBytesRead, bytesRead);
