@@ -60,6 +60,7 @@ public:
 
   // file has audio stream
   bool hasAudio() { return audio_st != nullptr; }
+  void enableAudio(bool enable = true) { mAudioEnabled = enable; }
 
   // get audio parameters
   int audioSampleRate();
@@ -98,6 +99,7 @@ private:
   // thread functions for decoding and video
   static void decodeThreadFunction(VideoReader *reader);
   static void videoThreadFunction(VideoReader *reader);
+  static void audioThreadFunction(VideoReader *reader);
 
   // inserts decoded frame into picture queue
   bool queue_picture(AVFrame *qFrame);
@@ -136,12 +138,14 @@ private:
   // ** Threads **
   std::thread *decode_thread;
   std::thread *video_thread;
+  std::thread *audio_thread;
 
   // ** Global Quit Flag **
   int global_quit;
 
   // TODO: use frame inherent data instead
   uint64_t currentFrame{0};
+  bool mAudioEnabled{true};
 };
 
 #endif // AL_VIDEOREADER_HPP

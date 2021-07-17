@@ -23,6 +23,7 @@ void VideoReader::init() {
 
   decode_thread = nullptr;
   video_thread = nullptr;
+  audio_thread = nullptr;
 
   global_quit = 0;
 
@@ -188,7 +189,8 @@ bool VideoReader::stream_component_open(int stream_index) {
 
 void VideoReader::start() {
   // if threads are already running, close them
-  if (decode_thread != nullptr || video_thread != nullptr) {
+  if (decode_thread != nullptr || video_thread != nullptr ||
+      audio_thread != nullptr) {
     stop();
   }
 
@@ -196,6 +198,9 @@ void VideoReader::start() {
   if (video_st != nullptr) {
     decode_thread = new std::thread(decodeThreadFunction, this);
     video_thread = new std::thread(videoThreadFunction, this);
+    if (!mAudioEnabled) {
+      audio_thread = new std::thread(audioThreadFunction, this);
+    }
   }
 
   if (!decode_thread) {
@@ -385,6 +390,18 @@ void VideoReader::videoThreadFunction(VideoReader *reader) {
   return;
 }
 
+void VideoReader::audioThreadFunction(VideoReader *reader) {
+
+  while (reader->global_quit == 0) {
+    // get more audio data
+    reader->audio_buffer[0].clear();
+    if (reader->audio_decode_frame() < 0) {
+      //        std::cerr << "audio_decode_frame() failed" << std::endl;
+      //        return;
+    }
+  }
+}
+
 bool VideoReader::queue_picture(AVFrame *qFrame) {
   // acquire picture queue mutex
   std::unique_lock<std::mutex> lk(pictq.mutex);
@@ -433,6 +450,9 @@ bool VideoReader::queue_picture(AVFrame *qFrame) {
     std::cerr << "Picture queue hasn't been allocated" << std::endl;
     global_quit = -1;
     return false;
+    //=======
+    //    avcodec_flush_buffers(audio_ctx);
+    //>>>>>>> Stashed changes
   }
 
   return true;
@@ -661,6 +681,12 @@ void VideoReader::stop() {
   if (video_thread) {
     pictq.cond.notify_one();
     video_thread->join();
+  }
+  if (audio_thread) {
+    // TODO audio thread only flushes audio for now. It should be used to queue
+    // audio
+    //      pictq.cond.notify_one();
+    audio_thread->join();
   }
 
   std::thread *dth = decode_thread;

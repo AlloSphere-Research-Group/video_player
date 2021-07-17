@@ -39,6 +39,9 @@ void VideoApp::onCreate() {
     quit();
   }
 
+  if (!isPrimary()) {
+    videoReader.enableAudio(false);
+  }
   videoReader.start();
 
   // generate texture
@@ -89,16 +92,19 @@ void VideoApp::onAnimate(al_sec dt) {
     uint8_t *frame = nullptr;
     while (state().frameNum > videoReader.getCurrentFrameNumber()) {
       frame = videoReader.getFrame();
-      videoReader.readAudioBuffer();
-      for (int inChan = 0; inChan < 4; inChan++) {
-        SingleRWRingBuffer *audioRingBuffer =
-            videoReader.getAudioBuffer(inChan);
-        audioRingBuffer->clear(); // flush buffers
+      if (frame) {
+        videoReader.gotFrame();
       }
+      //    videoReader.readAudioBuffer();
     }
+    //    for (int inChan = 0; inChan < 4; inChan++) {
+    //      SingleRWRingBuffer *audioRingBuffer =
+    //      videoReader.getAudioBuffer(inChan); audioRingBuffer->clear(); //
+    //      flush buffers
+    //    }
+    //    std::cout << videoReader.getCurrentFrameNumber() << std::endl;
     if (frame) {
       tex.submit(frame);
-      videoReader.gotFrame();
     }
   }
 }
