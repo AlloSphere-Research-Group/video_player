@@ -19,10 +19,10 @@ extern "C" {
 
 using namespace al;
 
-static const int AUDIO_BUFFER_SIZE = 8192 * 10;
+static const int AUDIO_BUFFER_SIZE = 8192 * 10; // 24
 static const int AUDIO_BUFFER_REFRESH_THRESHOLD = 8192;
 static const int MAX_AUDIOQ_SIZE = (5 * 16 * 1024 * 4);
-static const int MAX_VIDEOQ_SIZE = (5 * 256 * 1024);
+static const int MAX_VIDEOQ_SIZE = (5 * 256 * 1024); // * 16
 static const int PICTQ_SIZE = 8;
 static const double AV_SYNC_THRESHOLD = 0.01;
 static const double AV_NOSYNC_THRESHOLD = 1.0;

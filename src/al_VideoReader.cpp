@@ -246,6 +246,10 @@ void VideoReader::decodeThreadFunction(VideoReader *reader) {
 
   // check global quit flag
   while (reader->global_quit == 0) {
+    // std::cout << "audioq: " << reader->audioq.dataSize << " / "
+    //           << MAX_AUDIOQ_SIZE << std::endl;
+    // std::cout << " videoq: " << reader->videoq.dataSize << " / "
+    //           << MAX_VIDEOQ_SIZE << std::endl;
 
     // if queues are full, wait 10ms and retry
     if (reader->audioq.dataSize > MAX_AUDIOQ_SIZE ||
@@ -353,6 +357,9 @@ void VideoReader::videoThreadFunction(VideoReader *reader) {
     if (reader->global_quit != 0) {
       break;
     }
+
+    // std::cout << " pictq: " << reader->pictq.size << " / " << PICTQ_SIZE
+    //           << std::endl;
 
     // get video packet from the queue
     if (reader->packet_queue_get(&reader->videoq, video_pkt, 1) < 0) {
@@ -687,6 +694,14 @@ int VideoReader::audio_decode_frame() {
 void VideoReader::updateAudioRef() {
   audio_ref_clock = audio_clock - (double)audio_buffer[0].readSpace() *
                                       audio_ctx->channels / audio_data_rate;
+
+  // static int count = 0;
+  // count++;
+
+  // if (count % 10) {
+  //   std::cout << "  audiob: " << audio_buffer[0].readSpace() << " / "
+  //             << AUDIO_BUFFER_SIZE << std::endl;
+  // }
 }
 
 void VideoReader::packet_queue_init(PacketQueue *pktq) { pktq->dataSize = 0; }

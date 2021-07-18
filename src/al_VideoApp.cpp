@@ -369,11 +369,11 @@ void VideoApp::configureAudio() {
 
   if (videoReader.hasAudio()) {
     audioDomain()->audioIO().framesPerSecond(videoReader.audioSampleRate());
-    audioDomain()->audioIO().channelsOut(videoReader.audioNumChannels());
-    // audioDomain()->audioIO().channelsOut(60);
-    // if (videoReader.audioNumChannels() == 4) {
-    //   // TODO Determine this from metadata
-    //   decodeAmbisonics = true;
-    // }
+    // audioDomain()->audioIO().channelsOut(videoReader.audioNumChannels());
+    audioDomain()->audioIO().channelsOut(60);
+    if (videoReader.audioNumChannels() == 4) {
+      // TODO Determine this from metadata
+      decodeAmbisonics = true;
+    }
   }
 }
