@@ -1,6 +1,5 @@
 #include "al_VideoApp.hpp"
 
-#include "al/graphics/al_Font.hpp"
 #include "al/sphere/al_AlloSphereSpeakerLayout.hpp"
 #include "al/sphere/al_SphereUtils.hpp"
 
@@ -166,19 +165,29 @@ void VideoApp::onCreate() {
 void VideoApp::onAnimate(al_sec dt) {
   nav().pos().set(0);
 
+  frameFinished = false;
+
   if (isPrimary()) {
+    // state().quat = nav().quat();
+
     if (mPlaying) {
       uint8_t *frame = videoReader.getFrame();
       // returns immediately if nullptr is submitted
       tex.submit(frame);
       state().frameNum = videoReader.getCurrentFrameNumber();
-      // need to be called to advance picture queue
+
       if (frame) {
-        videoReader.gotFrame();
+        frameFinished = true;
       }
     }
   } else {
+    // nav().quat().set(state().quat);
+
     uint8_t *frame = nullptr;
+
+    if (videoReader.getCurrentFrameNumber() > state().frameNum) {
+      return;
+    }
 
     while (state().frameNum > videoReader.getCurrentFrameNumber()) {
       frame = videoReader.getFrame();
@@ -187,58 +196,40 @@ void VideoApp::onAnimate(al_sec dt) {
       }
     }
 
+    frame = videoReader.getFrame();
+    if (frame) {
+      frameFinished = true;
+    }
+
     tex.submit(frame);
   }
 }
 
 void VideoApp::onDraw(Graphics &g) {
-  if (isPrimary()) {
-    if (mPlaying) {
-      g.clear();
+  g.clear();
 
-      g.shader(pano_shader);
+  g.shader(pano_shader);
 
-      if (mUniformChanged) {
-        g.shader().uniform("exposure", mExposure);
-      }
-
-      tex.bind();
-
-      if (!mEquirectangular && !omniRendering->drawOmni) {
-        g.viewport(0, 0, fbWidth(), fbHeight());
-        g.camera(Viewpoint::IDENTITY);
-        g.draw(quad);
-      } else {
-        g.draw(sphere);
-      }
-
-      tex.unbind();
-    }
-  } else {
-    // Renderer
-    g.clear();
-
-    g.shader(pano_shader);
-
-    if (mUniformChanged) {
-      g.shader().uniform("exposure", mExposure);
-    }
-
-    tex.bind();
-
-    if (!mEquirectangular && !omniRendering->drawOmni) {
-      g.viewport(0, 0, fbWidth(), fbHeight());
-      g.camera(Viewpoint::IDENTITY);
-      g.draw(quad);
-    } else {
-      g.draw(sphere);
-    }
-
-    tex.unbind();
-
-    // FontRenderer::render(g, std::to_string(state().frameNum).c_str(),
-    //                      {-1, 1, -3});
+  if (mUniformChanged) {
+    g.shader().uniform("exposure", mExposure);
   }
+
+  tex.bind();
+
+  if (!mEquirectangular && !omniRendering->drawOmni) {
+    g.viewport(0, 0, fbWidth(), fbHeight());
+    g.camera(Viewpoint::IDENTITY);
+    g.draw(quad);
+  } else {
+    g.draw(sphere);
+  }
+
+  if (frameFinished) {
+    // need to be called to advance picture queue
+    videoReader.gotFrame();
+  }
+
+  tex.unbind();
 }
 
 void VideoApp::onSound(AudioIOData &io) {

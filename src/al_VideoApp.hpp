@@ -7,6 +7,7 @@
 
 typedef struct {
   int frameNum;
+  // Quatd quat;
 } SharedState;
 
 namespace al {
@@ -32,12 +33,13 @@ private:
   Texture tex;
   VAOMesh quad, sphere;
   bool mEquirectangular{false};
-  ShaderProgram pano_shader;
 
+  ShaderProgram pano_shader;
   float mExposure;
   bool mUniformChanged{false};
 
   VideoReader videoReader;
+  bool frameFinished{false};
 
   AmbiDecode ambisonics{3, 1, 2, 2};
   bool decodeAmbisonics{false};
