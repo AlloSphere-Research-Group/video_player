@@ -108,7 +108,7 @@ void VideoApp::onCreate() {
   const char *url = "/Users/cannedstar/code/video_player/data/"
                     "LastWhispers_040719_ambix_360.mp4";
 
-  // not sure if this can be extracted from metadata
+  // TODO: not sure if this can be extracted from metadata
   mEquirectangular = true;
 
   // load video file
@@ -239,8 +239,7 @@ void VideoApp::onDraw(Graphics &g) {
 void VideoApp::onSound(AudioIOData &io) {
   if (isPrimary()) {
     if (mPlaying && videoReader.hasAudio()) {
-      videoReader.readAudioBuffer();
-
+      // ambisonics
       if (decodeAmbisonics) {
         float audioBuffer[4][8192];
         float *audioBufferScan[4];
@@ -294,6 +293,8 @@ bool VideoApp::onKeyDown(const Keyboard &k) {
     mPlaying = true;
   } else if (k.key() == 'o') {
     omniRendering->drawOmni = !omniRendering->drawOmni;
+  } else if (k.key() == 'p') {
+    mEquirectangular = !mEquirectangular;
   }
   return true;
 }

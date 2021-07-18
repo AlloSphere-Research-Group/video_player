@@ -200,10 +200,15 @@ void VideoReader::start() {
   if (video_st != nullptr) {
     decode_thread = new std::thread(decodeThreadFunction, this);
     video_thread = new std::thread(videoThreadFunction, this);
-    // RESOLVE BEFORE COMMIT
-    // if (audio_enabled) {
-    //   audio_thread = new std::thread(audioThreadFunction, this);
-    // }
+
+    if (audio_st != nullptr && audio_enabled) {
+      audio_thread = new std::thread(audioThreadFunction, this);
+
+      if (!audio_thread) {
+        std::cerr << "Could not start audio thread" << std::endl;
+        stop();
+      }
+    }
   }
 
   if (!decode_thread) {
@@ -215,19 +220,14 @@ void VideoReader::start() {
     std::cerr << "Could not start video thread" << std::endl;
     stop();
   }
-
-  // RESOLVE BEFORE COMMIT might need to populate audio buffer here
 }
 
 void VideoReader::decodeThreadFunction(VideoReader *reader) {
   // allocate packet
   AVPacket *packet = av_packet_alloc();
 
-  while (true) {
-    // check global quit flag
-    if (reader->global_quit != 0) {
-      break;
-    }
+  // check global quit flag
+  while (reader->global_quit == 0) {
 
     // if queues are full, wait 10ms and retry
     if (reader->audioq.dataSize > MAX_AUDIOQ_SIZE ||
@@ -389,18 +389,6 @@ void VideoReader::videoThreadFunction(VideoReader *reader) {
   return;
 }
 
-void VideoReader::audioThreadFunction(VideoReader *reader) {
-  // RESOLVE BEFORE COMMIT
-  // while (reader->global_quit == 0) {
-  //   // get more audio data
-  //   reader->audio_buffer[0].clear();
-  //   if (reader->audio_decode_frame() < 0) {
-  //     //        std::cerr << "audio_decode_frame() failed" << std::endl;
-  //     //        return;
-  //   }
-  // }
-}
-
 bool VideoReader::queue_picture(AVFrame *qFrame) {
   // acquire picture queue mutex
   std::unique_lock<std::mutex> lk(pictq.mutex);
@@ -488,22 +476,18 @@ void VideoReader::gotFrame() {
   pictq.cond.notify_one();
 }
 
-void VideoReader::readAudioBuffer() {
-  if (audio_st && audio_enabled) {
-    while (audio_buffer[0].writeSpace() > AUDIO_BUFFER_REFRESH_THRESHOLD) {
-      if (global_quit != 0) {
-        return;
-      }
-
+void VideoReader::audioThreadFunction(VideoReader *reader) {
+  while (reader->global_quit == 0) {
+    // check if audio buffer needs to be written into
+    if (reader->audio_buffer[0].writeSpace() > AUDIO_BUFFER_REFRESH_THRESHOLD) {
       // get more audio data
-      if (audio_decode_frame() < 0) {
+      if (reader->audio_decode_frame() < 0) {
         std::cerr << "audio_decode_frame() failed" << std::endl;
-        global_quit = -1;
+        reader->global_quit = -1;
         return;
       }
     }
   }
-  return;
 }
 
 int VideoReader::audio_decode_frame() {
@@ -537,7 +521,7 @@ int VideoReader::audio_decode_frame() {
       return -1;
     } else if (sample_size * audio_frame->nb_samples >
                AUDIO_BUFFER_REFRESH_THRESHOLD) {
-      std::cerr << "Audio overrun" << std::endl;
+      std::cerr << "Audio buffer frame size too small" << std::endl;
       // TODO: will this ever happen? adjust writing as needed
     }
 
@@ -595,12 +579,7 @@ int VideoReader::packet_queue_get(PacketQueue *pktq, AVPacket *packet,
   // acquire packet queue mutex
   std::unique_lock<std::mutex> lk(pktq->mutex);
 
-  while (true) {
-    // global quit
-    if (global_quit != 0) {
-      return -1;
-    }
-
+  while (global_quit == 0) {
     if (!pktq->queue.empty()) {
       // copy contents from queue
       *packet = *(pktq->queue.front());
@@ -619,6 +598,9 @@ int VideoReader::packet_queue_get(PacketQueue *pktq, AVPacket *packet,
       pktq->cond.wait(lk);
     }
   }
+
+  // global quit flag has been set
+  return -1;
 }
 
 void VideoReader::cleanup() {
@@ -646,20 +628,21 @@ void VideoReader::stop() {
   global_quit = 1;
 
   if (decode_thread) {
-    audioq.cond.notify_one();
-    videoq.cond.notify_one();
+    audioq.cond.notify_all();
+    videoq.cond.notify_all();
     decode_thread->join();
   }
 
   if (video_thread) {
-    pictq.cond.notify_one();
+    pictq.cond.notify_all();
     video_thread->join();
   }
 
   if (audio_thread) {
-    // RESOLVE BEFORE COMMIT audio thread only flushes audio for now. It should
-    // be used to queue audio
+    std::cout << "waiting for join" << std::endl;
+    audioq.cond.notify_all();
     audio_thread->join();
+    std::cout << "has joined" << std::endl;
   }
 
   std::thread *dth = decode_thread;
@@ -669,6 +652,10 @@ void VideoReader::stop() {
   std::thread *vth = video_thread;
   video_thread = nullptr;
   delete vth;
+
+  std::thread *ath = audio_thread;
+  audio_thread = nullptr;
+  delete ath;
 
   cleanup();
 

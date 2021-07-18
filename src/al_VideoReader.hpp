@@ -80,9 +80,6 @@ public:
   // TODO: use inherent frame number
   uint16_t getCurrentFrameNumber() { return currentFrame; }
 
-  // fill audio buffer
-  void readAudioBuffer();
-
   // get the audio channel buffer
   SingleRWRingBuffer *getAudioBuffer(int channel) {
     return &(audio_buffer[channel]);
