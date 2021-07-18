@@ -61,6 +61,9 @@ public:
   // file has audio stream
   bool hasAudio() { return audio_st != nullptr; }
 
+  // disable audio playback
+  void disableAudio() { audio_disabled = true; }
+
   // get audio parameters
   int audioSampleRate();
   int audioNumChannels();
@@ -141,6 +144,7 @@ private:
   int global_quit;
 
   // TODO: use frame inherent data instead
+  bool audio_disabled{false};
   uint64_t currentFrame{0};
 };
 

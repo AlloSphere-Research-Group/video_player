@@ -26,6 +26,7 @@ void VideoReader::init() {
 
   global_quit = 0;
 
+  audio_disabled = false;
   currentFrame = 0;
 }
 
@@ -244,6 +245,12 @@ void VideoReader::decodeThreadFunction(VideoReader *reader) {
     if (packet->stream_index == reader->video_st_idx) {
       reader->packet_queue_put(&reader->videoq, packet);
     } else if (packet->stream_index == reader->audio_st_idx) {
+      // audio output has been disabled
+      if (reader->audio_disabled) {
+        av_packet_unref(packet);
+        continue;
+      }
+
       reader->packet_queue_put(&reader->audioq, packet);
     } else {
       av_packet_unref(packet);
@@ -463,7 +470,7 @@ void VideoReader::gotFrame() {
 }
 
 void VideoReader::readAudioBuffer() {
-  if (audio_st) {
+  if (audio_st && !audio_disabled) {
     while (audio_buffer[0].writeSpace() > AUDIO_BUFFER_REFRESH_THRESHOLD) {
       if (global_quit != 0) {
         return;

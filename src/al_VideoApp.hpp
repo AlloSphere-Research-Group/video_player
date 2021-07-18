@@ -21,12 +21,19 @@ public:
   virtual void onAnimate(al_sec dt) override;
   virtual void onDraw(Graphics &gl) override;
   virtual void onSound(AudioIOData &io) override;
-  // virtual bool onKeyDown(const Keyboard &k) override;
+  virtual bool onKeyDown(const Keyboard &k) override;
   virtual void onExit() override { videoReader.stop(); }
+
+  int addSphereWithEquirectTex(Mesh &m, double radius, int bands);
 
 private:
   Texture tex;
-  VAOMesh quad;
+  VAOMesh quad, sphere;
+  bool mEquirectangular{false};
+  ShaderProgram pano_shader;
+
+  float mExposure;
+  bool mUniformChanged{false};
 
   VideoReader videoReader;
 
