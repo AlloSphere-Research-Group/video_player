@@ -12,14 +12,22 @@ void VideoReader::init() {
   audio_ctx = nullptr;
   audio_frame = nullptr;
   audio_pkt = nullptr;
+  audio_sample_size = 0;
+  audio_data_rate = 0;
 
   video_st_idx = -1;
   video_st = nullptr;
   video_ctx = nullptr;
-  sws_ctx = nullptr;
   pictq.write_index = 0;
   pictq.read_index = 0;
   pictq.size = 0;
+  sws_ctx = nullptr;
+
+  video_clock = 0;
+  audio_clock = 0;
+  audio_ref_clock = 0;
+  frame_last_pts = 0;
+  frame_last_delay = 40e-3;
 
   decode_thread = nullptr;
   video_thread = nullptr;
@@ -164,6 +172,16 @@ bool VideoReader::stream_component_open(int stream_index) {
       audio_buffer.emplace_back(SingleRWRingBuffer{AUDIO_BUFFER_SIZE});
     }
 
+    // set parameters
+    audio_sample_size = av_get_bytes_per_sample(audio_ctx->sample_fmt);
+    if (audio_sample_size < 0) {
+      std::cerr << "Failed to calculate data size" << std::endl;
+      return false;
+    }
+
+    audio_data_rate =
+        audio_sample_size * audio_ctx->channels * audio_ctx->sample_rate;
+
     // initialize audio packet queue
     packet_queue_init(&audioq);
   } break;
@@ -240,7 +258,7 @@ void VideoReader::decodeThreadFunction(VideoReader *reader) {
     if (av_read_frame(reader->pFormatCtx, packet) < 0) {
       // no read error; wait for file
       if (reader->pFormatCtx->pb->error == 0) {
-        al_sleep_nsec(1000000000); // 100 ms
+        al_sleep_nsec(100000000); // 10 ms
         continue;
       } else {
         std::cerr << "Error reading frame" << std::endl;
@@ -297,6 +315,7 @@ void VideoReader::videoThreadFunction(VideoReader *reader) {
 
   // resize picture queue
   reader->pictq.queue.resize(PICTQ_SIZE, nullptr);
+  reader->pictq.pts.resize(PICTQ_SIZE, 0);
 
   // allocate frames in picture queue
   for (int index = 0; index < PICTQ_SIZE; ++index) {
@@ -326,6 +345,9 @@ void VideoReader::videoThreadFunction(VideoReader *reader) {
                          AV_PIX_FMT_RGBA, reader->video_ctx->width,
                          reader->video_ctx->height, 32);
   }
+
+  // PTS of the video frame
+  double pts = 0;
 
   while (!should_quit) {
     if (reader->global_quit != 0) {
@@ -362,7 +384,23 @@ void VideoReader::videoThreadFunction(VideoReader *reader) {
         break;
       }
 
-      if (!reader->queue_picture(video_frame)) {
+      // atempt to guess proper time stamp
+      pts = reader->guess_correct_pts(reader->video_ctx, video_frame->pts,
+                                      video_frame->pkt_dts);
+
+      // if guess failed
+      if (pts == AV_NOPTS_VALUE) {
+        // set pts to the default value of 0
+        pts = 0;
+      }
+
+      // convert pts using video stream's time base
+      pts *= av_q2d(reader->video_st->time_base);
+
+      // sync video frame using pts
+      pts = reader->synchronize_video(video_frame, pts);
+
+      if (!reader->queue_picture(video_frame, pts)) {
         // global quit flag has been set
         should_quit = true;
         break;
@@ -389,7 +427,61 @@ void VideoReader::videoThreadFunction(VideoReader *reader) {
   return;
 }
 
-bool VideoReader::queue_picture(AVFrame *qFrame) {
+int64_t VideoReader::guess_correct_pts(AVCodecContext *ctx,
+                                       int64_t &reordered_pts, int64_t &dts) {
+  int64_t pts = AV_NOPTS_VALUE;
+
+  if (dts != AV_NOPTS_VALUE) {
+    ctx->pts_correction_num_faulty_dts += dts <= ctx->pts_correction_last_dts;
+    ctx->pts_correction_last_dts = dts;
+  } else if (reordered_pts != AV_NOPTS_VALUE) {
+    ctx->pts_correction_last_dts = reordered_pts;
+  }
+
+  if (reordered_pts != AV_NOPTS_VALUE) {
+    ctx->pts_correction_num_faulty_pts +=
+        reordered_pts <= ctx->pts_correction_last_pts;
+    ctx->pts_correction_last_pts = reordered_pts;
+  } else if (dts != AV_NOPTS_VALUE) {
+    ctx->pts_correction_last_pts = dts;
+  }
+
+  if ((ctx->pts_correction_num_faulty_pts <=
+           ctx->pts_correction_num_faulty_dts ||
+       dts == AV_NOPTS_VALUE) &&
+      reordered_pts != AV_NOPTS_VALUE) {
+    pts = reordered_pts;
+  } else {
+    pts = dts;
+  }
+
+  return pts;
+}
+
+double VideoReader::synchronize_video(AVFrame *src_frame, double &pts) {
+  double frame_delay;
+
+  if (pts != 0) {
+    // if we have pts, set the video_clock to it
+    video_clock = pts;
+  } else {
+    // if we don't have a pts, set it to the clock
+    pts = video_clock;
+  }
+
+  // RESOLVE BEFORE COMMIT
+  // base time between frames
+  frame_delay = av_q2d(video_st->time_base);
+  // calculate how much frame must be delayed
+  frame_delay += 0.5 * frame_delay * src_frame->repeat_pict;
+
+  // update video clock
+  video_clock += frame_delay;
+
+  return pts;
+}
+
+bool VideoReader::queue_picture(AVFrame *qFrame, double &pts) {
   // acquire picture queue mutex
   std::unique_lock<std::mutex> lk(pictq.mutex);
 
@@ -406,6 +498,9 @@ bool VideoReader::queue_picture(AVFrame *qFrame) {
 
   // check if frame has been correctly allocated
   if (pictq.queue[pictq.write_index]) {
+    // set updated pts value
+    pictq.pts[pictq.write_index] = pts;
+
     // set frame info using last decoded frame
     pictq.queue[pictq.write_index]->pict_type = qFrame->pict_type;
     pictq.queue[pictq.write_index]->pts = qFrame->pts;
@@ -442,14 +537,44 @@ bool VideoReader::queue_picture(AVFrame *qFrame) {
   return true;
 }
 
-uint8_t *VideoReader::getFrame() {
+uint8_t *VideoReader::getFrame(double &av_delay) {
   // check picture queue contains decoded frames
   if (pictq.size == 0) {
     // skip updating texture this frame
     return nullptr;
   } else {
-    return (uint8_t *)*pictq.queue[pictq.read_index]
-        ->extended_data; // same as data[0]
+    AVFrame *frame = pictq.queue[pictq.read_index];
+    double &pts = pictq.pts[pictq.read_index];
+
+    // get last frame pts
+    double pts_delay = pts - frame_last_pts;
+
+    // check if obtained delay is invalid
+    if (pts_delay <= 0 || pts_delay >= 1.0) {
+      // use previous calculated delay
+      pts_delay = frame_last_delay;
+    }
+
+    // save delay information
+    frame_last_delay = pts_delay;
+    frame_last_pts = pts;
+
+    double sync_threshold =
+        (pts_delay > AV_SYNC_THRESHOLD) ? pts_delay : AV_SYNC_THRESHOLD;
+
+    av_delay = 0;
+    if (audio_st) {
+      double audio_video_delay = pts - audio_ref_clock;
+
+      // check if audio video delay is below sync threshold
+      if (fabs(audio_video_delay) > sync_threshold) {
+        av_delay = audio_video_delay;
+      }
+    }
+
+    return (uint8_t *)*frame->extended_data; // same as data[0]
+    // return (uint8_t *)*pictq.queue[pictq.read_index]
+    //     ->extended_data; // same as data[0]
   }
 }
 
@@ -509,22 +634,22 @@ int VideoReader::audio_decode_frame() {
       return -1;
     }
 
-    int sample_size = av_get_bytes_per_sample(audio_ctx->sample_fmt);
-    if (sample_size < 0) {
-      std::cerr << "Failed to calculate data size" << std::endl;
-      return -1;
-    } else if (sample_size * audio_frame->nb_samples >
-               AUDIO_BUFFER_REFRESH_THRESHOLD) {
-      std::cerr << "Audio buffer frame size too small" << std::endl;
-      // TODO: will this ever happen? adjust writing as needed
-    }
+    // does this ever happen?
+    // if (audio_sample_size * audio_frame->nb_samples >
+    //     AUDIO_BUFFER_REFRESH_THRESHOLD) {
+    //   std::cerr << "Audio buffer frame size too small" << std::endl;
+    // }
 
     for (int i = 0; i < audio_frame->nb_samples; ++i) {
       for (int ch = 0; ch < audio_ctx->channels; ++ch) {
         data_size += audio_buffer[ch].write(
-            (const char *)audio_frame->data[ch] + sample_size * i, sample_size);
+            (const char *)audio_frame->data[ch] + audio_sample_size * i,
+            audio_sample_size);
       }
     }
+
+    // update audio clock as we read through the packet
+    audio_clock += (double)data_size / audio_data_rate;
 
     // audio buffer sufficiently filled. come back later
     // TODO: see if this can be more optimized
@@ -551,7 +676,17 @@ int VideoReader::audio_decode_frame() {
     return -1;
   }
 
+  // update audio clock from new packet
+  if (audio_pkt->pts != AV_NOPTS_VALUE) {
+    audio_clock = av_q2d(audio_st->time_base) * audio_pkt->pts;
+  }
+
   return data_size;
+}
+
+void VideoReader::updateAudioRef() {
+  audio_ref_clock = audio_clock - (double)audio_buffer[0].readSpace() *
+                                      audio_ctx->channels / audio_data_rate;
 }
 
 void VideoReader::packet_queue_init(PacketQueue *pktq) { pktq->dataSize = 0; }
@@ -655,4 +790,5 @@ void VideoReader::stop() {
 
   audio_buffer.clear();
   pictq.queue.clear();
+  pictq.pts.clear();
 }

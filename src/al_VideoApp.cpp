@@ -166,18 +166,31 @@ void VideoApp::onAnimate(al_sec dt) {
   nav().pos().set(0);
 
   frameFinished = false;
+  double av_delay = 0;
 
   if (isPrimary()) {
     // state().quat = nav().quat();
 
     if (mPlaying) {
-      uint8_t *frame = videoReader.getFrame();
-      // returns immediately if nullptr is submitted
-      tex.submit(frame);
-      state().frameNum = videoReader.getCurrentFrameNumber();
+      while (!frameFinished) {
+        uint8_t *frame = videoReader.getFrame(av_delay);
 
-      if (frame) {
-        frameFinished = true;
+        if (av_delay > 0) { // video needs to be delayed
+          return;
+        } else if (av_delay == 0) { // video is in sync with audio
+          if (frame) {
+            // returns immediately if nullptr is submitted
+            tex.submit(frame);
+            state().frameNum = videoReader.getCurrentFrameNumber();
+            frameFinished = true;
+          }
+          return;
+        }
+
+        // video needs to catch up with audio
+        if (frame) {
+          videoReader.gotFrame();
+        }
       }
     }
   } else {
@@ -190,13 +203,13 @@ void VideoApp::onAnimate(al_sec dt) {
     }
 
     while (state().frameNum > videoReader.getCurrentFrameNumber()) {
-      frame = videoReader.getFrame();
+      frame = videoReader.getFrame(av_delay);
       if (frame) {
         videoReader.gotFrame();
       }
     }
 
-    frame = videoReader.getFrame();
+    frame = videoReader.getFrame(av_delay);
     if (frame) {
       frameFinished = true;
     }
@@ -280,6 +293,9 @@ void VideoApp::onSound(AudioIOData &io) {
           }
         }
       }
+
+      // update current audio reference clock
+      videoReader.updateAudioRef();
     }
   }
 }
@@ -353,11 +369,11 @@ void VideoApp::configureAudio() {
 
   if (videoReader.hasAudio()) {
     audioDomain()->audioIO().framesPerSecond(videoReader.audioSampleRate());
-    // audioDomain()->audioIO().channelsOut(videoReader.audioNumChannels());
-    audioDomain()->audioIO().channelsOut(60);
-    if (videoReader.audioNumChannels() == 4) {
-      // TODO Determine this from metadata
-      decodeAmbisonics = true;
-    }
+    audioDomain()->audioIO().channelsOut(videoReader.audioNumChannels());
+    // audioDomain()->audioIO().channelsOut(60);
+    // if (videoReader.audioNumChannels() == 4) {
+    //   // TODO Determine this from metadata
+    //   decodeAmbisonics = true;
+    // }
   }
 }

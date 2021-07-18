@@ -19,11 +19,13 @@ extern "C" {
 
 using namespace al;
 
-static const int AUDIO_BUFFER_SIZE = 8192 * 8;
+static const int AUDIO_BUFFER_SIZE = 8192 * 10;
 static const int AUDIO_BUFFER_REFRESH_THRESHOLD = 8192;
-static const int MAX_AUDIOQ_SIZE = (5 * 16 * 1024);
+static const int MAX_AUDIOQ_SIZE = (5 * 16 * 1024 * 4);
 static const int MAX_VIDEOQ_SIZE = (5 * 256 * 1024);
 static const int PICTQ_SIZE = 8;
+static const double AV_SYNC_THRESHOLD = 0.01;
+static const double AV_NOSYNC_THRESHOLD = 1.0;
 
 // queue structure to store AVPackets
 typedef struct PacketQueue {
@@ -36,6 +38,7 @@ typedef struct PacketQueue {
 // queue structure to store picture frames
 typedef struct PictureQueue {
   std::vector<AVFrame *> queue;
+  std::vector<double> pts;
   int write_index;
   int read_index;
   int size;
@@ -74,7 +77,7 @@ public:
   double fps();
 
   // get the next frame data
-  uint8_t *getFrame();
+  uint8_t *getFrame(double &av_delay);
   // notify frame has been rendered
   void gotFrame();
   // TODO: use inherent frame number
@@ -84,6 +87,9 @@ public:
   SingleRWRingBuffer *getAudioBuffer(int channel) {
     return &(audio_buffer[channel]);
   }
+
+  // update current audio reference clock
+  void updateAudioRef();
 
   // free memories
   void cleanup();
@@ -100,8 +106,15 @@ private:
   static void videoThreadFunction(VideoReader *reader);
   static void audioThreadFunction(VideoReader *reader);
 
+  // attempt to guess proper timestamps for decoded video frames
+  int64_t guess_correct_pts(AVCodecContext *ctx, int64_t &reordered_pts,
+                            int64_t &dts);
+
+  // update the pts
+  double synchronize_video(AVFrame *src_frame, double &pts);
+
   // inserts decoded frame into picture queue
-  bool queue_picture(AVFrame *qFrame);
+  bool queue_picture(AVFrame *qFrame, double &pts);
 
   // decode audio frame
   // returns size of decoded audio data if successful, negative on fail
@@ -125,14 +138,23 @@ private:
   std::vector<SingleRWRingBuffer> audio_buffer;
   AVFrame *audio_frame;
   AVPacket *audio_pkt;
+  int audio_sample_size;
+  int audio_data_rate;
 
   // ** Video Stream **
   int video_st_idx;
   AVStream *video_st;
   AVCodecContext *video_ctx;
   PacketQueue videoq;
-  struct SwsContext *sws_ctx;
   PictureQueue pictq;
+  struct SwsContext *sws_ctx;
+
+  // ** Sync **
+  double video_clock;
+  double audio_clock;
+  double audio_ref_clock;
+  double frame_last_pts;
+  double frame_last_delay;
 
   // ** Threads **
   std::thread *decode_thread;
