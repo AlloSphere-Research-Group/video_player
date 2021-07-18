@@ -23,7 +23,7 @@ static const int AUDIO_BUFFER_SIZE = 8192 * 8;
 static const int AUDIO_BUFFER_REFRESH_THRESHOLD = 8192;
 static const int MAX_AUDIOQ_SIZE = (5 * 16 * 1024);
 static const int MAX_VIDEOQ_SIZE = (5 * 256 * 1024);
-static const int PICTQ_SIZE = 3;
+static const int PICTQ_SIZE = 8;
 
 // queue structure to store AVPackets
 typedef struct PacketQueue {

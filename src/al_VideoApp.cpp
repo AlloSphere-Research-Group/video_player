@@ -168,18 +168,23 @@ void VideoApp::onAnimate(al_sec dt) {
 
   if (isPrimary()) {
     if (mPlaying) {
-      // returns immediately if nullptr is sent
-      tex.submit(videoReader.getFrame());
+      uint8_t *frame = videoReader.getFrame();
+      // returns immediately if nullptr is submitted
+      tex.submit(frame);
       state().frameNum = videoReader.getCurrentFrameNumber();
       // need to be called to advance picture queue
-      videoReader.gotFrame();
+      if (frame) {
+        videoReader.gotFrame();
+      }
     }
   } else {
     uint8_t *frame = nullptr;
 
     while (state().frameNum > videoReader.getCurrentFrameNumber()) {
       frame = videoReader.getFrame();
-      videoReader.gotFrame();
+      if (frame) {
+        videoReader.gotFrame();
+      }
     }
 
     tex.submit(frame);
@@ -357,6 +362,7 @@ void VideoApp::configureAudio() {
 
   if (videoReader.hasAudio()) {
     audioDomain()->audioIO().framesPerSecond(videoReader.audioSampleRate());
+    // audioDomain()->audioIO().channelsOut(videoReader.audioNumChannels());
     audioDomain()->audioIO().channelsOut(60);
     if (videoReader.audioNumChannels() == 4) {
       // TODO Determine this from metadata

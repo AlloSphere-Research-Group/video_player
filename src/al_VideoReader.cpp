@@ -443,20 +443,14 @@ bool VideoReader::queue_picture(AVFrame *qFrame) {
 }
 
 uint8_t *VideoReader::getFrame() {
-  // check if video stream was correctly opened
-  if (video_st) {
-    // check picture queue contains decoded frames
-    if (pictq.size == 0) {
-      // skip updating texture this frame
-      return nullptr;
-    } else {
-      return (uint8_t *)*pictq.queue[pictq.read_index]
-          ->extended_data; // same as data[0]
-    }
+  // check picture queue contains decoded frames
+  if (pictq.size == 0) {
+    // skip updating texture this frame
+    return nullptr;
+  } else {
+    return (uint8_t *)*pictq.queue[pictq.read_index]
+        ->extended_data; // same as data[0]
   }
-
-  // no video stream
-  return nullptr;
 }
 
 void VideoReader::gotFrame() {
