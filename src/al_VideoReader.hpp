@@ -61,8 +61,8 @@ public:
   // file has audio stream
   bool hasAudio() { return audio_st != nullptr; }
 
-  // disable audio playback
-  void disableAudio() { audio_disabled = true; }
+  // enable/disable audio playback
+  void enableAudio(bool enable = true) { audio_enabled = enable; }
 
   // get audio parameters
   int audioSampleRate();
@@ -101,6 +101,7 @@ private:
   // thread functions for decoding and video
   static void decodeThreadFunction(VideoReader *reader);
   static void videoThreadFunction(VideoReader *reader);
+  static void audioThreadFunction(VideoReader *reader);
 
   // inserts decoded frame into picture queue
   bool queue_picture(AVFrame *qFrame);
@@ -139,12 +140,14 @@ private:
   // ** Threads **
   std::thread *decode_thread;
   std::thread *video_thread;
+  std::thread *audio_thread;
 
   // ** Global Quit Flag **
   int global_quit;
 
+  // ** Video Player Parameters **
+  bool audio_enabled{true};
   // TODO: use frame inherent data instead
-  bool audio_disabled{false};
   uint64_t currentFrame{0};
 };
 

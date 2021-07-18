@@ -1,6 +1,8 @@
 #include "al_VideoApp.hpp"
 
 #include "al/graphics/al_Font.hpp"
+#include "al/sphere/al_AlloSphereSpeakerLayout.hpp"
+#include "al/sphere/al_SphereUtils.hpp"
 
 using namespace al;
 
@@ -70,8 +72,6 @@ void main() {
 )";
 
 VideoApp::VideoApp() {
-  mPlaying = false;
-
   // remove simulation domain to replace it with simulation domain that runs
   // post onDraw()
   mOpenGLGraphicsDomain->removeSubDomain(simulationDomain());
@@ -83,7 +83,9 @@ VideoApp::VideoApp() {
 void VideoApp::onInit() {
   omniRendering->drawOmni = false;
 
+  mPlaying = false;
   mExposure = 1.0f;
+  audioIO().gain(1.0); // 0.4
 }
 
 void VideoApp::onCreate() {
@@ -97,16 +99,17 @@ void VideoApp::onCreate() {
   // url of video file
   // const char *url =
   //     "/Users/cannedstar/code/video_player/data/renate-barcelona-driving.mp4";
-  const char *url =
-      "/Users/cannedstar/code/video_player/data/Iron_Man-Trailer_HD.mp4";
+  // const char *url =
+  //     "/Users/cannedstar/code/video_player/data/Iron_Man-Trailer_HD.mp4";
   // const char *url = "/Users/cannedstar/code/video_player/data/"
   //                   "3DH-Take1-Side-By-Side-4000x2000.mp4";
   // const char *url = "/Users/cannedstar/code/video_player/data/"
   //                   "unreal-village-omnistereo.mp4";
-  // const char *url = "/Users/cannedstar/code/video_player/data/"
-  //                   "LastWhispers_040719_ambix_360.mp4";
+  const char *url = "/Users/cannedstar/code/video_player/data/"
+                    "LastWhispers_040719_ambix_360.mp4";
 
-  // mEquirectangular = true;
+  // not sure if this can be extracted from metadata
+  mEquirectangular = true;
 
   // load video file
   audioDomain()->stop();
@@ -115,8 +118,8 @@ void VideoApp::onCreate() {
     quit();
   }
 
-  if (!hasCapability(CAP_AUDIO_IO)) {
-    videoReader.disableAudio();
+  if (!isPrimary()) {
+    videoReader.enableAudio(false);
   }
 
   videoReader.start();
@@ -148,26 +151,38 @@ void VideoApp::onCreate() {
   sphere.update();
 
   // set fps
-  fps(videoReader.fps());
+  if (isPrimary()) {
+    fps(videoReader.fps());
+  }
 
   mPlaying = true;
 
-  // start audio
-  if (videoReader.hasAudio()) {
-    audioDomain()->audioIO().framesPerSecond(videoReader.audioSampleRate());
-    audioDomain()->audioIO().channelsOut(videoReader.audioNumChannels());
-  }
+  configureAudio();
 
+  // start audio
   audioDomain()->start();
 }
 
 void VideoApp::onAnimate(al_sec dt) {
   nav().pos().set(0);
 
-  if (mPlaying) {
-    tex.submit(videoReader.getFrame());
-    state().frameNum = videoReader.getCurrentFrameNumber();
-    videoReader.gotFrame();
+  if (isPrimary()) {
+    if (mPlaying) {
+      // returns immediately if nullptr is sent
+      tex.submit(videoReader.getFrame());
+      state().frameNum = videoReader.getCurrentFrameNumber();
+      // need to be called to advance picture queue
+      videoReader.gotFrame();
+    }
+  } else {
+    uint8_t *frame = nullptr;
+
+    while (state().frameNum > videoReader.getCurrentFrameNumber()) {
+      frame = videoReader.getFrame();
+      videoReader.gotFrame();
+    }
+
+    tex.submit(frame);
   }
 }
 
@@ -197,33 +212,87 @@ void VideoApp::onDraw(Graphics &g) {
   } else {
     // Renderer
     g.clear();
-    FontRenderer::render(g, std::to_string(state().frameNum).c_str(),
-                         {-1, 1, -3});
+
+    g.shader(pano_shader);
+
+    if (mUniformChanged) {
+      g.shader().uniform("exposure", mExposure);
+    }
+
+    tex.bind();
+
+    if (!mEquirectangular && !omniRendering->drawOmni) {
+      g.viewport(0, 0, fbWidth(), fbHeight());
+      g.camera(Viewpoint::IDENTITY);
+      g.draw(quad);
+    } else {
+      g.draw(sphere);
+    }
+
+    tex.unbind();
+
+    // FontRenderer::render(g, std::to_string(state().frameNum).c_str(),
+    //                      {-1, 1, -3});
   }
 }
 
 void VideoApp::onSound(AudioIOData &io) {
-  if (mPlaying && videoReader.hasAudio()) {
-    videoReader.readAudioBuffer();
+  if (isPrimary()) {
+    if (mPlaying && videoReader.hasAudio()) {
+      videoReader.readAudioBuffer();
 
-    float audioBuffer[8192];
+      if (decodeAmbisonics) {
+        float audioBuffer[4][8192];
+        float *audioBufferScan[4];
+        assert(io.framesPerBuffer() <= 8192);
+        // Read video file audio buffers
+        size_t channelBytesRead = 0;
 
-    for (int i = 0; i < io.channelsOut(); ++i) {
-      SingleRWRingBuffer *audioRingBuffer = videoReader.getAudioBuffer(i);
-      size_t bytesRead = audioRingBuffer->read(
-          (char *)audioBuffer, io.framesPerBuffer() * sizeof(float));
+        for (int inChan = 0; inChan < 4; inChan++) {
+          SingleRWRingBuffer *audioRingBuffer =
+              videoReader.getAudioBuffer(inChan);
+          size_t bytesRead =
+              audioRingBuffer->read((char *)audioBuffer[inChan],
+                                    io.framesPerBuffer() * sizeof(float));
 
-      // *** notify_one here too
+          // map from FuMa to ACN (should be determined from file metadata
+          int ambiMap[] = {0, 2, 3, 1};
+          audioBufferScan[inChan] = audioBuffer[ambiMap[inChan]];
+          if (inChan > 0 && channelBytesRead != bytesRead) {
+            std::cerr << "ERROR audio buffer size mismatch" << std::endl;
+            channelBytesRead = std::min(channelBytesRead, bytesRead);
+          } else {
+            channelBytesRead = bytesRead;
+          }
+        }
+        float *outbufs[64];
+        assert(io.channelsOut() <= 64);
+        for (int i = 0; i < io.channelsOut(); ++i) {
+          outbufs[i] = io.outBuffer(i);
+        }
+        ambisonics.decode((float **)outbufs, (const float **)audioBufferScan,
+                          channelBytesRead);
+      } else { // no ambisonics
+        float audioBuffer[8192];
 
-      if (bytesRead > 0) {
-        memcpy(io.outBuffer(i), audioBuffer, bytesRead);
+        for (int i = 0; i < videoReader.audioNumChannels(); ++i) {
+          SingleRWRingBuffer *audioRingBuffer = videoReader.getAudioBuffer(i);
+          size_t bytesRead = audioRingBuffer->read(
+              (char *)audioBuffer, io.framesPerBuffer() * sizeof(float));
+
+          if (bytesRead > 0) {
+            memcpy(io.outBuffer(i), audioBuffer, bytesRead);
+          }
+        }
       }
     }
   }
 }
 
 bool VideoApp::onKeyDown(const Keyboard &k) {
-  if (k.key() == 'o') {
+  if (k.key() == ' ') {
+    mPlaying = true;
+  } else if (k.key() == 'o') {
     omniRendering->drawOmni = !omniRendering->drawOmni;
   }
   return true;
@@ -275,4 +344,22 @@ int VideoApp::addSphereWithEquirectTex(Mesh &m, double radius, int bands) {
   }
 
   return m.vertices().size();
+}
+
+void VideoApp::configureAudio() {
+  auto sl = AlloSphereSpeakerLayoutExtraThin();
+  if (al::sphere::isSimulatorMachine()) {
+    ambisonics.setSpeakers(sl);
+  } else {
+    ambisonics.setSpeakers(sl);
+  }
+
+  if (videoReader.hasAudio()) {
+    audioDomain()->audioIO().framesPerSecond(videoReader.audioSampleRate());
+    audioDomain()->audioIO().channelsOut(60);
+    if (videoReader.audioNumChannels() == 4) {
+      // TODO Determine this from metadata
+      decodeAmbisonics = true;
+    }
+  }
 }

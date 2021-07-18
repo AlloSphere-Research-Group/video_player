@@ -2,6 +2,7 @@
 #define AL_VIDEOAPP_HPP
 
 #include "al/app/al_DistributedApp.hpp"
+#include "al/sound/al_Ambisonics.hpp"
 #include "al_VideoReader.hpp"
 
 typedef struct {
@@ -25,6 +26,7 @@ public:
   virtual void onExit() override { videoReader.stop(); }
 
   int addSphereWithEquirectTex(Mesh &m, double radius, int bands);
+  void configureAudio();
 
 private:
   Texture tex;
@@ -36,6 +38,9 @@ private:
   bool mUniformChanged{false};
 
   VideoReader videoReader;
+
+  AmbiDecode ambisonics{3, 1, 2, 2};
+  bool decodeAmbisonics{false};
 
   bool mPlaying{false};
 };

@@ -23,10 +23,11 @@ void VideoReader::init() {
 
   decode_thread = nullptr;
   video_thread = nullptr;
+  audio_thread = nullptr;
 
   global_quit = 0;
 
-  audio_disabled = false;
+  audio_enabled = true;
   currentFrame = 0;
 }
 
@@ -96,12 +97,15 @@ bool VideoReader::load(const char *url) {
   }
 
   if (audio_st_idx == -1) {
-    // std::cerr << "Could not find audio stream" << std::endl;
+    // no audio stream
+    // TODO: consider audio only files
+    audio_enabled = false;
   } else if (!stream_component_open(audio_st_idx)) {
     std::cerr << "Could not open audio codec" << std::endl;
     return false;
   }
 
+  // TODO: add initialization notice to videoapp
   return true;
 }
 
@@ -162,8 +166,6 @@ bool VideoReader::stream_component_open(int stream_index) {
 
     // initialize audio packet queue
     packet_queue_init(&audioq);
-
-    // TODO: add initialization notice to videoapp
   } break;
 
   case AVMEDIA_TYPE_VIDEO: {
@@ -189,7 +191,8 @@ bool VideoReader::stream_component_open(int stream_index) {
 
 void VideoReader::start() {
   // if threads are already running, close them
-  if (decode_thread != nullptr || video_thread != nullptr) {
+  if (decode_thread != nullptr || video_thread != nullptr ||
+      audio_thread != nullptr) {
     stop();
   }
 
@@ -197,6 +200,10 @@ void VideoReader::start() {
   if (video_st != nullptr) {
     decode_thread = new std::thread(decodeThreadFunction, this);
     video_thread = new std::thread(videoThreadFunction, this);
+    // RESOLVE BEFORE COMMIT
+    // if (audio_enabled) {
+    //   audio_thread = new std::thread(audioThreadFunction, this);
+    // }
   }
 
   if (!decode_thread) {
@@ -209,7 +216,7 @@ void VideoReader::start() {
     stop();
   }
 
-  // might need to populate audio buffer here
+  // RESOLVE BEFORE COMMIT might need to populate audio buffer here
 }
 
 void VideoReader::decodeThreadFunction(VideoReader *reader) {
@@ -246,7 +253,7 @@ void VideoReader::decodeThreadFunction(VideoReader *reader) {
       reader->packet_queue_put(&reader->videoq, packet);
     } else if (packet->stream_index == reader->audio_st_idx) {
       // audio output has been disabled
-      if (reader->audio_disabled) {
+      if (!reader->audio_enabled) {
         av_packet_unref(packet);
         continue;
       }
@@ -382,6 +389,18 @@ void VideoReader::videoThreadFunction(VideoReader *reader) {
   return;
 }
 
+void VideoReader::audioThreadFunction(VideoReader *reader) {
+  // RESOLVE BEFORE COMMIT
+  // while (reader->global_quit == 0) {
+  //   // get more audio data
+  //   reader->audio_buffer[0].clear();
+  //   if (reader->audio_decode_frame() < 0) {
+  //     //        std::cerr << "audio_decode_frame() failed" << std::endl;
+  //     //        return;
+  //   }
+  // }
+}
+
 bool VideoReader::queue_picture(AVFrame *qFrame) {
   // acquire picture queue mutex
   std::unique_lock<std::mutex> lk(pictq.mutex);
@@ -470,7 +489,7 @@ void VideoReader::gotFrame() {
 }
 
 void VideoReader::readAudioBuffer() {
-  if (audio_st && !audio_disabled) {
+  if (audio_st && audio_enabled) {
     while (audio_buffer[0].writeSpace() > AUDIO_BUFFER_REFRESH_THRESHOLD) {
       if (global_quit != 0) {
         return;
@@ -635,6 +654,12 @@ void VideoReader::stop() {
   if (video_thread) {
     pictq.cond.notify_one();
     video_thread->join();
+  }
+
+  if (audio_thread) {
+    // RESOLVE BEFORE COMMIT audio thread only flushes audio for now. It should
+    // be used to queue audio
+    audio_thread->join();
   }
 
   std::thread *dth = decode_thread;
