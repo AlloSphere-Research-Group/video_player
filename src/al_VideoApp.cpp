@@ -237,6 +237,10 @@ void VideoApp::onDraw(Graphics &g) {
       g.camera(Viewpoint::IDENTITY);
       g.draw(quad);
     } else if (!omniRendering->drawOmni) {
+      g.viewport(0, 0, fbWidth(), fbHeight());
+      g.camera(Viewpoint::IDENTITY);
+      g.draw(quad);
+    } else {
       g.draw(sphere);
     }
   } else {
