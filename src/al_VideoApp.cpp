@@ -80,7 +80,9 @@ VideoApp::VideoApp() {
 }
 
 void VideoApp::onInit() {
-  omniRendering->drawOmni = false;
+  if (hasCapability(CAP_OMNIRENDERING)) {
+    omniRendering->drawOmni = false;
+  }
 
   mPlaying = false;
   mExposure = 1.0f;
@@ -229,10 +231,14 @@ void VideoApp::onDraw(Graphics &g) {
 
   tex.bind();
 
-  if (!mEquirectangular && !omniRendering->drawOmni) {
-    g.viewport(0, 0, fbWidth(), fbHeight());
-    g.camera(Viewpoint::IDENTITY);
-    g.draw(quad);
+  if (!mEquirectangular) {
+    if (!hasCapability(CAP_OMNIRENDERING)) {
+      g.viewport(0, 0, fbWidth(), fbHeight());
+      g.camera(Viewpoint::IDENTITY);
+      g.draw(quad);
+    } else if (!omniRendering->drawOmni) {
+      g.draw(sphere);
+    }
   } else {
     g.draw(sphere);
   }
@@ -304,7 +310,9 @@ bool VideoApp::onKeyDown(const Keyboard &k) {
   if (k.key() == ' ') {
     mPlaying = true;
   } else if (k.key() == 'o') {
-    omniRendering->drawOmni = !omniRendering->drawOmni;
+    if (hasCapability(CAP_OMNIRENDERING)) {
+      omniRendering->drawOmni = !omniRendering->drawOmni;
+    }
   } else if (k.key() == 'p') {
     mEquirectangular = !mEquirectangular;
   }
