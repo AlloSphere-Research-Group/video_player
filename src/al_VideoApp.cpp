@@ -80,10 +80,6 @@ VideoApp::VideoApp() {
 }
 
 void VideoApp::onInit() {
-  if (hasCapability(CAP_OMNIRENDERING)) {
-    omniRendering->drawOmni = false;
-  }
-
   mPlaying = false;
   mExposure = 1.0f;
   audioIO().gain(1.0); // 0.4
@@ -98,16 +94,11 @@ void VideoApp::onCreate() {
   pano_shader.end();
 
   // url of video file
-  // const char *url =
-  //     "/Users/cannedstar/code/video_player/data/renate-barcelona-driving.mp4";
-  // const char *url =
-  //     "/Users/cannedstar/code/video_player/data/Iron_Man-Trailer_HD.mp4";
-  // const char *url = "/Users/cannedstar/code/video_player/data/"
-  //                   "3DH-Take1-Side-By-Side-4000x2000.mp4";
-  // const char *url = "/Users/cannedstar/code/video_player/data/"
-  //                   "unreal-village-omnistereo.mp4";
-  const char *url = "/Users/cannedstar/code/video_player/data/"
-                    "LastWhispers_040719_ambix_360.mp4";
+  // const char *url = "/data/media/pano_videos/renate-barcelona-driving.mp4";
+  // const char *url = "/data/media/pano_videos/Iron_Man-Trailer_HD.mp4";
+  // const char *url = "/data/media/pano_videos/3DH-Take1-Side-By-Side-4000x2000.mp4";
+  // const char *url = "/data/media/pano_videos/unreal-village-omnistereo.mp4";
+  const char *url = "/data/media/pano_videos/LastWhispers_040719_ambix_360.mp4";
 
   // TODO: not sure if this can be extracted from metadata
   mEquirectangular = true;
@@ -168,56 +159,16 @@ void VideoApp::onAnimate(al_sec dt) {
   nav().pos().set(0);
 
   frameFinished = false;
-  double av_delay = 0;
 
-  if (isPrimary()) {
-    // state().quat = nav().quat();
+  double av_delay;    
+          uint8_t *frame = videoReader.getFrame(av_delay);
 
-    if (mPlaying) {
-      while (!frameFinished) {
-        uint8_t *frame = videoReader.getFrame(av_delay);
-
-        if (av_delay > 0) { // video needs to be delayed
-          return;
-        } else if (av_delay == 0) { // video is in sync with audio
           if (frame) {
             // returns immediately if nullptr is submitted
             tex.submit(frame);
             state().frameNum = videoReader.getCurrentFrameNumber();
             frameFinished = true;
           }
-          return;
-        }
-
-        // video needs to catch up with audio
-        if (frame) {
-          videoReader.gotFrame();
-        }
-      }
-    }
-  } else {
-    // nav().quat().set(state().quat);
-
-    uint8_t *frame = nullptr;
-
-    if (videoReader.getCurrentFrameNumber() > state().frameNum) {
-      return;
-    }
-
-    while (state().frameNum > videoReader.getCurrentFrameNumber()) {
-      frame = videoReader.getFrame(av_delay);
-      if (frame) {
-        videoReader.gotFrame();
-      }
-    }
-
-    frame = videoReader.getFrame(av_delay);
-    if (frame) {
-      frameFinished = true;
-    }
-
-    tex.submit(frame);
-  }
 }
 
 void VideoApp::onDraw(Graphics &g) {
@@ -231,21 +182,7 @@ void VideoApp::onDraw(Graphics &g) {
 
   tex.bind();
 
-  if (!mEquirectangular) {
-    if (!hasCapability(CAP_OMNIRENDERING)) {
-      g.viewport(0, 0, fbWidth(), fbHeight());
-      g.camera(Viewpoint::IDENTITY);
-      g.draw(quad);
-    } else if (!omniRendering->drawOmni) {
-      g.viewport(0, 0, fbWidth(), fbHeight());
-      g.camera(Viewpoint::IDENTITY);
-      g.draw(quad);
-    } else {
-      g.draw(sphere);
-    }
-  } else {
     g.draw(sphere);
-  }
 
   if (frameFinished) {
     // need to be called to advance picture queue
