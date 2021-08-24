@@ -6,8 +6,8 @@
 #include "al_VideoReader.hpp"
 
 typedef struct {
-  int frameNum;
-  // Quatd quat;
+  int frameNum = 0;
+  bool diagnostics{false};
 } SharedState;
 
 namespace al {

@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.0)
 project(VideoPlayer)
 
 # name of application. replace 'app' with desired app name
-set(APP_NAME app)
+set(APP_NAME allo_player)
 
 # path to main source file
 add_executable(${APP_NAME}
@@ -31,6 +31,7 @@ target_link_libraries(${APP_NAME} PRIVATE al)
 set(FFMPEG_ROOT "/usr/local/" CACHE STRING "Path to FFMPEG lib and include directories")
 # set(FFMPEG_ROOT "/Users/cannedstar/code/ffmpeg" CACHE STRING "Path to FFMPEG lib and include directories")
 
+message("Using FFMPEG at ${FFMPEG_ROOT}")
 # FFMPEG
 find_path(AVCODEC_INCLUDE_DIR libavcodec/avcodec.h PATHS ${FFMPEG_ROOT} PATH_SUFFIXES "include")
 find_library(AVCODEC_LIBRARY avcodec PATHS ${FFMPEG_ROOT} PATH_SUFFIXES "lib")

@@ -3,6 +3,8 @@
 #include "al/sphere/al_AlloSphereSpeakerLayout.hpp"
 #include "al/sphere/al_SphereUtils.hpp"
 
+#include "al/graphics/al_Font.hpp"
+
 using namespace al;
 
 const std::string pano_vert = R"(
@@ -80,7 +82,7 @@ VideoApp::VideoApp() {
 }
 
 void VideoApp::onInit() {
-  mPlaying = false;
+  //  mPlaying = false;
   mExposure = 1.0f;
   audioIO().gain(1.0); // 0.4
 }
@@ -96,12 +98,17 @@ void VideoApp::onCreate() {
   // url of video file
   // const char *url = "/data/media/pano_videos/renate-barcelona-driving.mp4";
   // const char *url = "/data/media/pano_videos/Iron_Man-Trailer_HD.mp4";
-  // const char *url = "/data/media/pano_videos/3DH-Take1-Side-By-Side-4000x2000.mp4";
-  // const char *url = "/data/media/pano_videos/unreal-village-omnistereo.mp4";
-  const char *url = "/data/media/pano_videos/LastWhispers_040719_ambix_360.mp4";
+  // const char *url =
+  // "/data/media/pano_videos/3DH-Take1-Side-By-Side-4000x2000.mp4"; const char
+  // *url = "/data/media/pano_videos/unreal-village-omnistereo.mp4";
+  //  const char *url =
+  //  "/data/media/pano_videos/LastWhispers_040719_ambix_360.mp4";
 
   // TODO: not sure if this can be extracted from metadata
   mEquirectangular = true;
+
+  const char *url = "c:/Users/Andres/Downloads/"
+                    "LastWhispers_040719_ambix_360.mp4";
 
   // load video file
   audioDomain()->stop();
@@ -147,7 +154,7 @@ void VideoApp::onCreate() {
     fps(videoReader.fps());
   }
 
-  mPlaying = true;
+  //  mPlaying = true;
 
   configureAudio();
 
@@ -156,40 +163,118 @@ void VideoApp::onCreate() {
 }
 
 void VideoApp::onAnimate(al_sec dt) {
-  nav().pos().set(0);
 
-  frameFinished = false;
+  if (isPrimary()) {
+    // state().quat = nav().quat();
 
-  double av_delay;    
-          uint8_t *frame = videoReader.getFrame(av_delay);
+    if (mPlaying) {
+      frameFinished = false;
+      while (!frameFinished) {
+        double av_delay;
+        uint8_t *frame = videoReader.getFrame(av_delay);
+        //+          uint8_t *frame = videoReader.getFrame(av_delay);
 
+        if (av_delay > 0) { // video needs to be delayed
+          return;
+        } else if (av_delay == 0) { // video is in sync with audio
           if (frame) {
             // returns immediately if nullptr is submitted
             tex.submit(frame);
             state().frameNum = videoReader.getCurrentFrameNumber();
             frameFinished = true;
           }
+
+          state().frameNum = videoReader.getCurrentFrameNumber();
+          return;
+        }
+
+        // video needs to catch up with audio
+        if (frame) {
+          videoReader.gotFrame();
+        }
+      }
+      state().frameNum = videoReader.getCurrentFrameNumber();
+    }
+  } else {
+    nav().pos().set(0);
+    uint8_t *frame = nullptr;
+    while (state().frameNum > videoReader.getCurrentFrameNumber()) {
+      double av_delay;
+      frame = videoReader.getFrame(av_delay);
+      if (frame) {
+        videoReader.gotFrame();
+      }
+    }
+    if (frame) {
+      tex.submit(frame);
+    }
+  }
 }
 
 void VideoApp::onDraw(Graphics &g) {
   g.clear();
 
-  g.shader(pano_shader);
+  if (isPrimary()) {
+    g.clear();
+    if (mPlaying) {
+      g.viewport(0, 0, fbWidth(), fbHeight());
+      g.pushCamera(Viewpoint::IDENTITY);
+      tex.bind();
+      g.texture();
+      g.draw(quad);
+      tex.unbind();
+      g.popCamera();
+    }
+    if (state().diagnostics) {
+      FontRenderer::render(
+          g, ("Frame: " + std::to_string(state().frameNum)).c_str(),
+          {-0.7, 0.45, -2}, 0.05);
 
-  if (mUniformChanged) {
-    g.shader().uniform("exposure", mExposure);
-  }
+      FontRenderer::render(
+          g,
+          ("FPS: " + std::to_string(1.0 / simulationDomain()->timeDelta()))
+              .c_str(),
+          {-0.7, 0.4, -2}, 0.05);
+    }
+  } else {
+    // Renderer
+    g.clear();
+    g.shader(pano_shader);
 
-  tex.bind();
+    if (mUniformChanged) {
+      g.shader().uniform("exposure", mExposure);
+    }
+    // Dummy rendering on quad while we map the sphere
+    //    g.pushMatrix();
+    //    g.translate(0, 0, -4);
+    //    g.scale(5);
+    //    tex.bind();
+    //    g.texture();
+    //    g.draw(quad);
+    //    tex.unbind();
+    //    g.popMatrix();
 
+    tex.bind();
     g.draw(sphere);
 
-  if (frameFinished) {
-    // need to be called to advance picture queue
-    videoReader.gotFrame();
-  }
+    if (frameFinished) {
+      // need to be called to advance picture queue
+      videoReader.gotFrame();
+    }
+    tex.unbind();
 
-  tex.unbind();
+    if (state().diagnostics) {
+      FontRenderer::render(
+          g, ("Frame: " + std::to_string(state().frameNum)).c_str(),
+          {-0.7, 0.65, -2}, 0.3);
+
+      FontRenderer::render(
+          g,
+          ("FPS: " + std::to_string(1.0 / simulationDomain()->timeDelta()))
+              .c_str(),
+          {-0.7, 0.4, -2}, 0.3);
+    }
+  }
 }
 
 void VideoApp::onSound(AudioIOData &io) {
@@ -249,13 +334,15 @@ void VideoApp::onSound(AudioIOData &io) {
 
 bool VideoApp::onKeyDown(const Keyboard &k) {
   if (k.key() == ' ') {
-    mPlaying = true;
+    mPlaying = !mPlaying;
   } else if (k.key() == 'o') {
     if (hasCapability(CAP_OMNIRENDERING)) {
       omniRendering->drawOmni = !omniRendering->drawOmni;
     }
   } else if (k.key() == 'p') {
     mEquirectangular = !mEquirectangular;
+  } else if (k.key() == Keyboard::TAB) {
+    state().diagnostics = !state().diagnostics;
   }
   return true;
 }
