@@ -148,6 +148,9 @@ void VideoApp::onCreate() {
 
   // start audio
   audioDomain()->start();
+  if (hasCapability(Capability::CAP_2DGUI)) {
+    imguiInit();
+  }
 }
 
 void VideoApp::onAnimate(al_sec dt) {
@@ -156,6 +159,14 @@ void VideoApp::onAnimate(al_sec dt) {
     // state().quat = nav().quat();
 
     if (mPlaying) {
+      if (syncToMTC.get() == 1.0) {
+        // FIXME implement syncing to MTC
+
+        //        uint8_t hour, minute, second, frame;
+        //        mtcReader.getMTC(hour, minute, second, frame);
+        //        int fps = mtcReader.fps();
+        //        int frameNum = mtcReader.frameNum();
+      }
       frameFinished = false;
       while (!frameFinished) {
         double av_delay;
@@ -196,6 +207,27 @@ void VideoApp::onAnimate(al_sec dt) {
     if (frame) {
       tex.submit(frame);
     }
+  }
+  if (hasCapability(Capability::CAP_2DGUI)) {
+
+    imguiBeginFrame();
+
+    ImGui::Begin("MIDI Time Code");
+
+    ParameterGUI::draw(&syncToMTC);
+    ParameterGUI::drawMIDIIn(&mtcReader.midiIn);
+    ParameterGUI::draw(&mtcReader.TCframes);
+    ParameterGUI::draw(&mtcReader.frameOffset);
+    ParameterGUI::drawMIDIIn(&mtcReader.midiIn);
+
+    uint8_t hour, minute, second, frame;
+    mtcReader.getMTC(hour, minute, second, frame);
+    ImGui::Text("%02i:%02i:%02i:%02i", hour, minute, second, frame);
+    //    int fps = mtcReader.fps();
+    int frameNum = mtcReader.frameNum();
+    ImGui::Text("Frame num : %i", frameNum);
+    ImGui::End();
+    imguiEndFrame();
   }
 }
 
@@ -262,6 +294,9 @@ void VideoApp::onDraw(Graphics &g) {
               .c_str(),
           {-0.7, 0.4, -2}, 0.3);
     }
+  }
+  if (state().diagnostics && hasCapability(Capability::CAP_2DGUI)) {
+    imguiDraw();
   }
 }
 
@@ -333,6 +368,14 @@ bool VideoApp::onKeyDown(const Keyboard &k) {
     state().diagnostics = !state().diagnostics;
   }
   return true;
+}
+
+void VideoApp::onExit() {
+  videoReader.stop();
+
+  if (hasCapability(Capability::CAP_2DGUI)) {
+    imguiShutdown();
+  }
 }
 
 int VideoApp::addSphereWithEquirectTex(Mesh &m, double radius, int bands) {

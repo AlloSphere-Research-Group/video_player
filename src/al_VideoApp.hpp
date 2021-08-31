@@ -1,6 +1,7 @@
 #ifndef AL_VIDEOAPP_HPP
 #define AL_VIDEOAPP_HPP
 
+#include "MTCReader.hpp"
 #include "al/app/al_DistributedApp.hpp"
 #include "al/sound/al_Ambisonics.hpp"
 #include "al_VideoReader.hpp"
@@ -14,6 +15,7 @@ namespace al {
 
 class VideoApp : public DistributedAppWithState<SharedState> {
 public:
+  ParameterBool syncToMTC{"syncToMTC"};
   VideoApp();
 
   virtual ~VideoApp() {}
@@ -24,7 +26,7 @@ public:
   virtual void onDraw(Graphics &gl) override;
   virtual void onSound(AudioIOData &io) override;
   virtual bool onKeyDown(const Keyboard &k) override;
-  virtual void onExit() override { videoReader.stop(); }
+  virtual void onExit() override;
 
   int addSphereWithEquirectTex(Mesh &m, double radius, int bands);
   void configureAudio();
@@ -44,6 +46,8 @@ private:
 
   VideoReader videoReader;
   bool frameFinished{false};
+
+  MTCReader mtcReader;
 
   AmbiDecode ambisonics{3, 1, 2, 2};
   bool decodeAmbisonics{false};
