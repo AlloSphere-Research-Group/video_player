@@ -29,6 +29,10 @@ public:
   int addSphereWithEquirectTex(Mesh &m, double radius, int bands);
   void configureAudio();
 
+  void setVideoFile(std::string videoFileUrl) {
+    mVideoFileToLoad = videoFileUrl;
+  };
+
 private:
   Texture tex;
   VAOMesh quad, sphere;
@@ -45,6 +49,8 @@ private:
   bool decodeAmbisonics{false};
 
   bool mPlaying{false};
+
+  std::string mVideoFileToLoad;
 };
 
 } // namespace al

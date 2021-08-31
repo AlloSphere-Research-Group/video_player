@@ -95,27 +95,15 @@ void VideoApp::onCreate() {
   pano_shader.uniform("exposure", mExposure);
   pano_shader.end();
 
-  // url of video file
-  // const char *url = "/data/media/pano_videos/renate-barcelona-driving.mp4";
-  // const char *url = "/data/media/pano_videos/Iron_Man-Trailer_HD.mp4";
-  // const char *url =
-  // "/data/media/pano_videos/3DH-Take1-Side-By-Side-4000x2000.mp4"; const char
-  // *url = "/data/media/pano_videos/unreal-village-omnistereo.mp4";
-  //  const char *url =
-  //  "/data/media/pano_videos/LastWhispers_040719_ambix_360.mp4";
-
-  // TODO: not sure if this can be extracted from metadata
-  mEquirectangular = true;
-
-  const char *url = "c:/Users/Andres/Downloads/"
-                    "LastWhispers_040719_ambix_360.mp4";
-
   // load video file
   audioDomain()->stop();
-  if (!videoReader.load(url)) {
+  if (!videoReader.load(mVideoFileToLoad.c_str())) {
     std::cerr << "Error loading video file" << std::endl;
     quit();
   }
+
+  // TODO: this can probably be extracted from video file metadata
+  mEquirectangular = true;
 
   if (!isPrimary()) {
     videoReader.enableAudio(false);
