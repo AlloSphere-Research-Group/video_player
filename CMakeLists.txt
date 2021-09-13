@@ -14,7 +14,6 @@ add_executable(${APP_NAME}
                src/al_VideoReader.cpp
                src/MTCReader.hpp
                src/MTCReader.cpp)
-               # src/test.cpp)
 
 # add allolib as a subdirectory to the project
 add_subdirectory(allolib)
