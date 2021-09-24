@@ -23,9 +23,11 @@ static const int AUDIO_BUFFER_SIZE = 8192 * 10; // 24
 static const int AUDIO_BUFFER_REFRESH_THRESHOLD = 8192;
 static const int MAX_AUDIOQ_SIZE = (5 * 16 * 1024 * 4);
 static const int MAX_VIDEOQ_SIZE = (5 * 256 * 1024); // * 16
-static const int PICTQ_SIZE = 8;
+static const int PICTQ_SIZE = 1;
 static const double AV_SYNC_THRESHOLD = 0.01;
 static const double AV_NOSYNC_THRESHOLD = 1.0;
+
+enum MasterSync { AV_SYNC_AUDIO = 0, AV_SYNC_VIDEO = 1, AV_SYNC_EXTERNAL = 2 };
 
 // queue structure to store AVPackets
 typedef struct PacketQueue {
@@ -71,13 +73,16 @@ public:
   int audioSampleRate();
   int audioNumChannels();
 
+  // set which clock the playback will sync to
+  void setMasterSync(MasterSync newSync) { master_sync = newSync; };
+
   // get video parameters
   int width();
   int height();
   double fps();
 
   // get the next frame data
-  uint8_t *getFrame(double &av_delay);
+  uint8_t *getFrame(double &external_clock);
   // notify frame has been rendered
   void gotFrame();
   // TODO: use inherent frame number
@@ -88,8 +93,7 @@ public:
     return &(audio_buffer[channel]);
   }
 
-  // update current audio reference clock
-  void updateAudioRef();
+  void stream_seek(int64_t pos, int rel);
 
   // free memories
   void cleanup();
@@ -120,12 +124,16 @@ private:
   // returns size of decoded audio data if successful, negative on fail
   int audio_decode_frame();
 
+  // get the current audio reference clock
+  double get_audio_clock();
+
   // functions to manage packet queue
-  void packet_queue_init(PacketQueue *pq);
-  void packet_queue_put(PacketQueue *pq, AVPacket *packet);
+  void packet_queue_init(PacketQueue *pktq);
+  void packet_queue_put(PacketQueue *pktq, AVPacket *packet);
   // returns -1 if global quit flag is set, 0 if queue is empty, 1 if packet has
   // been extracted
-  int packet_queue_get(PacketQueue *pq, AVPacket *packet, int blocking);
+  int packet_queue_get(PacketQueue *pktq, AVPacket *packet, int blocking);
+  void packet_queue_flush(PacketQueue *pktq);
 
   // ** File I/O Context **
   AVFormatContext *pFormatCtx;
@@ -150,11 +158,19 @@ private:
   struct SwsContext *sws_ctx;
 
   // ** Sync **
+  MasterSync master_sync{MasterSync::AV_SYNC_EXTERNAL};
   double video_clock;
   double audio_clock;
-  double audio_ref_clock;
+  double master_clock;
   double frame_last_pts;
   double frame_last_delay;
+
+  // ** Seek **
+  int seek_requested;
+  int seek_flags;
+  int64_t seek_pos;
+  bool video_flush_requested;
+  bool audio_flush_requested;
 
   // ** Threads **
   std::thread *decode_thread;

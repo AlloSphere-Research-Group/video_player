@@ -82,12 +82,12 @@ VideoApp::VideoApp() {
 }
 
 void VideoApp::onInit() {
-  //  mPlaying = false;
   mExposure = 1.0f;
   audioIO().gain(1.0); // 0.4
 }
 
 void VideoApp::onCreate() {
+  // compile & initialize shader
   pano_shader.compile(pano_vert, pano_frag);
 
   pano_shader.begin();
@@ -97,6 +97,16 @@ void VideoApp::onCreate() {
 
   // load video file
   audioDomain()->stop();
+  // TODO: temporarily disabled audio
+  // if (!isPrimary()) {
+  videoReader.enableAudio(false);
+  // }
+
+  // if (isPrimary()) {
+  //   videoReader.setMasterSync(MasterSync::AV_SYNC_AUDIO);
+  // }
+
+  // TODO: check audio startup
   if (!videoReader.load(mVideoFileToLoad.c_str())) {
     std::cerr << "Error loading video file" << std::endl;
     quit();
@@ -104,10 +114,6 @@ void VideoApp::onCreate() {
 
   // TODO: this can probably be extracted from video file metadata
   mEquirectangular = true;
-
-  if (!isPrimary()) {
-    videoReader.enableAudio(false);
-  }
 
   videoReader.start();
 
@@ -137,79 +143,56 @@ void VideoApp::onCreate() {
   addSphereWithEquirectTex(sphere, 10, 50);
   sphere.update();
 
+  // TODO: review high fps option with manual timing control
   // set fps
   if (isPrimary()) {
-    fps(videoReader.fps());
+    // fps(videoReader.fps());
+    mtcReader.TCframes.setCurrent("30");
+    state().global_clock = 0;
   }
-
-  //  mPlaying = true;
 
   configureAudio();
 
   // start audio
   audioDomain()->start();
+
+  // start GUI
   if (hasCapability(Capability::CAP_2DGUI)) {
     imguiInit();
   }
 }
 
 void VideoApp::onAnimate(al_sec dt) {
+  nav().pos().set(0);
 
   if (isPrimary()) {
     // state().quat = nav().quat();
 
     if (mPlaying) {
-      if (syncToMTC.get() == 1.0) {
-        // FIXME implement syncing to MTC
-
-        //        uint8_t hour, minute, second, frame;
-        //        mtcReader.getMTC(hour, minute, second, frame);
-        //        int fps = mtcReader.fps();
-        //        int frameNum = mtcReader.frameNum();
-      }
-      frameFinished = false;
-      while (!frameFinished) {
-        double av_delay;
-        uint8_t *frame = videoReader.getFrame(av_delay);
-        //+          uint8_t *frame = videoReader.getFrame(av_delay);
-
-        if (av_delay > 0) { // video needs to be delayed
-          return;
-        } else if (av_delay == 0) { // video is in sync with audio
-          if (frame) {
-            // returns immediately if nullptr is submitted
-            tex.submit(frame);
-            state().frameNum = videoReader.getCurrentFrameNumber();
-            frameFinished = true;
-          }
-
-          state().frameNum = videoReader.getCurrentFrameNumber();
-          return;
-        }
-
-        // video needs to catch up with audio
-        if (frame) {
-          videoReader.gotFrame();
-        }
-      }
-      state().frameNum = videoReader.getCurrentFrameNumber();
+      state().global_clock += dt;
     }
-  } else {
-    nav().pos().set(0);
-    uint8_t *frame = nullptr;
-    while (state().frameNum > videoReader.getCurrentFrameNumber()) {
-      double av_delay;
-      frame = videoReader.getFrame(av_delay);
-      if (frame) {
-        videoReader.gotFrame();
+
+    if (syncToMTC.get() == 1.0) {
+      // TODO: review drift + handle offset (won't start at 0)
+      uint8_t hour, minute, second, frame;
+      mtcReader.getMTC(hour, minute, second, frame);
+      int fps = mtcReader.fps();
+      int frameNum = mtcReader.frameNum();
+      if (lastFrameNum != frameNum) {
+        state().global_clock = (double)frameNum / (double)fps;
+        lastFrameNum = frameNum;
       }
-    }
-    if (frame) {
-      tex.submit(frame);
     }
   }
-  if (hasCapability(Capability::CAP_2DGUI)) {
 
+  uint8_t *frame = videoReader.getFrame(state().global_clock);
+
+  if (frame) {
+    tex.submit(frame);
+    videoReader.gotFrame();
+  }
+
+  if (hasCapability(Capability::CAP_2DGUI)) {
     imguiBeginFrame();
 
     ImGui::Begin("MIDI Time Code");
@@ -235,68 +218,42 @@ void VideoApp::onDraw(Graphics &g) {
   g.clear();
 
   if (isPrimary()) {
-    g.clear();
-    if (mPlaying) {
-      g.viewport(0, 0, fbWidth(), fbHeight());
-      g.pushCamera(Viewpoint::IDENTITY);
-      tex.bind();
-      g.texture();
-      g.draw(quad);
-      tex.unbind();
-      g.popCamera();
-    }
-    if (state().diagnostics) {
-      FontRenderer::render(
-          g, ("Frame: " + std::to_string(state().frameNum)).c_str(),
-          {-0.7, 0.45, -2}, 0.05);
-
-      FontRenderer::render(
-          g,
-          ("FPS: " + std::to_string(1.0 / simulationDomain()->timeDelta()))
-              .c_str(),
-          {-0.7, 0.4, -2}, 0.05);
-    }
+    g.viewport(0, 0, fbWidth(), fbHeight());
+    g.pushCamera(Viewpoint::IDENTITY);
+    tex.bind();
+    g.texture();
+    g.draw(quad);
+    tex.unbind();
+    g.popCamera();
   } else {
     // Renderer
-    g.clear();
     g.shader(pano_shader);
 
+    // TODO: add exposure control
     if (mUniformChanged) {
       g.shader().uniform("exposure", mExposure);
+      mUniformChanged = false;
     }
-    // Dummy rendering on quad while we map the sphere
-    //    g.pushMatrix();
-    //    g.translate(0, 0, -4);
-    //    g.scale(5);
-    //    tex.bind();
-    //    g.texture();
-    //    g.draw(quad);
-    //    tex.unbind();
-    //    g.popMatrix();
 
     tex.bind();
     g.draw(sphere);
-
-    if (frameFinished) {
-      // need to be called to advance picture queue
-      videoReader.gotFrame();
-    }
     tex.unbind();
-
-    if (state().diagnostics) {
-      FontRenderer::render(
-          g, ("Frame: " + std::to_string(state().frameNum)).c_str(),
-          {-0.7, 0.65, -2}, 0.3);
-
-      FontRenderer::render(
-          g,
-          ("FPS: " + std::to_string(1.0 / simulationDomain()->timeDelta()))
-              .c_str(),
-          {-0.7, 0.4, -2}, 0.3);
-    }
   }
-  if (state().diagnostics && hasCapability(Capability::CAP_2DGUI)) {
-    imguiDraw();
+
+  if (mShowDiagnostic) {
+    FontRenderer::render(
+        g, ("Clock: " + std::to_string(state().global_clock)).c_str(),
+        {-0.7, 0.45, -2}, 0.05);
+
+    FontRenderer::render(
+        g,
+        ("FPS: " + std::to_string(1.0 / simulationDomain()->timeDelta()))
+            .c_str(),
+        {-0.7, 0.4, -2}, 0.05);
+
+    if (hasCapability(Capability::CAP_2DGUI)) {
+      imguiDraw();
+    }
   }
 }
 
@@ -348,9 +305,6 @@ void VideoApp::onSound(AudioIOData &io) {
           }
         }
       }
-
-      // update current audio reference clock
-      videoReader.updateAudioRef();
     }
   }
 }
@@ -365,7 +319,23 @@ bool VideoApp::onKeyDown(const Keyboard &k) {
   } else if (k.key() == 'p') {
     mEquirectangular = !mEquirectangular;
   } else if (k.key() == Keyboard::TAB) {
-    state().diagnostics = !state().diagnostics;
+    mShowDiagnostic = !mShowDiagnostic;
+  } else if (k.key() == '[') {
+    if (isPrimary()) {
+      // TODO: implement get_master_clock
+      double pos = state().global_clock;
+      pos -= 10.0;
+      state().global_clock -= 10.0;
+      videoReader.stream_seek((int64_t)(pos * AV_TIME_BASE), -10.0);
+    }
+  } else if (k.key() == ']') {
+    if (isPrimary()) {
+      // TODO: implement get_master_clock
+      double pos = state().global_clock;
+      pos += 10.0;
+      state().global_clock += 10.0;
+      videoReader.stream_seek((int64_t)(pos * AV_TIME_BASE), 10.0);
+    }
   }
   return true;
 }

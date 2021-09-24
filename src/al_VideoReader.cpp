@@ -23,11 +23,18 @@ void VideoReader::init() {
   pictq.size = 0;
   sws_ctx = nullptr;
 
+  master_sync = MasterSync::AV_SYNC_EXTERNAL;
   video_clock = 0;
   audio_clock = 0;
-  audio_ref_clock = 0;
+  master_clock = 0;
   frame_last_pts = 0;
   frame_last_delay = 40e-3;
+
+  seek_requested = 0;
+  seek_flags = 0;
+  seek_pos = 0;
+  video_flush_requested = false;
+  audio_flush_requested = false;
 
   decode_thread = nullptr;
   video_thread = nullptr;
@@ -57,8 +64,24 @@ int VideoReader::audioNumChannels() {
   }
 }
 
-int VideoReader::width() { return video_ctx->width; }
-int VideoReader::height() { return video_ctx->height; }
+int VideoReader::width() {
+  if (video_ctx)
+    return video_ctx->width;
+  else {
+    std::cerr << "No video stream" << std::endl;
+    return 0;
+  }
+}
+
+int VideoReader::height() {
+  if (video_ctx)
+    return video_ctx->height;
+  else {
+    std::cerr << "No video stream" << std::endl;
+    return 0;
+  }
+}
+
 double VideoReader::fps() {
   double guess = av_q2d(av_guess_frame_rate(pFormatCtx, video_st, NULL));
   if (guess == 0) {
@@ -246,11 +269,60 @@ void VideoReader::decodeThreadFunction(VideoReader *reader) {
 
   // check global quit flag
   while (reader->global_quit == 0) {
+    if (reader->seek_requested) {
+      int video_stream_index = -1;
+      int audio_stream_index = -1;
+      int64_t video_seek_target = reader->seek_pos;
+      int64_t audio_seek_target = reader->seek_pos;
+
+      if (reader->video_st)
+        video_stream_index = reader->video_st_idx;
+      if (reader->audio_st)
+        audio_stream_index = reader->audio_st_idx;
+
+      if (video_stream_index >= 0) {
+        video_seek_target = av_rescale_q(
+            video_seek_target, AV_TIME_BASE_Q,
+            reader->pFormatCtx->streams[video_stream_index]->time_base);
+      }
+      if (audio_stream_index >= 0) {
+        audio_seek_target = av_rescale_q(
+            audio_seek_target, AV_TIME_BASE_Q,
+            reader->pFormatCtx->streams[audio_stream_index]->time_base);
+      }
+
+      int ret = av_seek_frame(reader->pFormatCtx, video_stream_index,
+                              video_seek_target, reader->seek_flags);
+      if (reader->audio_st)
+        ret &= av_seek_frame(reader->pFormatCtx, audio_stream_index,
+                             audio_seek_target, reader->seek_flags);
+
+      if (ret < 0) {
+        std::cerr << "Error while seeking" << std::endl;
+      } else {
+        if (reader->video_st) {
+          reader->packet_queue_flush(&reader->videoq);
+          // TODO: remove
+          // reader->packet_queue_put(&reader->videoq, &reader->flush_pkt);
+          reader->video_flush_requested = true;
+        }
+        if (reader->audio_st) {
+          reader->packet_queue_flush(&reader->audioq);
+          // reader->packet_queue_put(&reader->audioq, &reader->flush_pkt);
+          reader->audio_flush_requested = true;
+        }
+      }
+
+      reader->seek_requested = 0;
+    }
+
+    // TODO: move this into diagnostic
     // std::cout << "audioq: " << reader->audioq.dataSize << " / "
     //           << MAX_AUDIOQ_SIZE << std::endl;
     // std::cout << " videoq: " << reader->videoq.dataSize << " / "
     //           << MAX_VIDEOQ_SIZE << std::endl;
 
+    // TODO: review wait condition
     // if queues are full, wait 10ms and retry
     if (reader->audioq.dataSize > MAX_AUDIOQ_SIZE ||
         reader->videoq.dataSize > MAX_VIDEOQ_SIZE) {
@@ -290,6 +362,7 @@ void VideoReader::decodeThreadFunction(VideoReader *reader) {
   av_packet_unref(packet);
   av_packet_free(&packet);
 
+  // TODO: check quit conditions
   // wait for rest of program to end
   while (reader->global_quit == 0) {
     al_sleep_nsec(1000000000); // 100 ms
@@ -365,6 +438,13 @@ void VideoReader::videoThreadFunction(VideoReader *reader) {
     if (reader->packet_queue_get(&reader->videoq, video_pkt, 1) < 0) {
       // global quit flag has been set
       break;
+    }
+
+    if (reader->video_flush_requested) {
+      // if (video_pkt->data == reader->flush_pkt.data) {
+      avcodec_flush_buffers(reader->video_ctx);
+      reader->video_flush_requested = false;
+      continue;
     }
 
     // send raw compressed video data in AVPacket to decoder
@@ -544,7 +624,7 @@ bool VideoReader::queue_picture(AVFrame *qFrame, double &pts) {
   return true;
 }
 
-uint8_t *VideoReader::getFrame(double &av_delay) {
+uint8_t *VideoReader::getFrame(double &external_clock) {
   // check picture queue contains decoded frames
   if (pictq.size == 0) {
     // skip updating texture this frame
@@ -563,20 +643,30 @@ uint8_t *VideoReader::getFrame(double &av_delay) {
     }
 
     // save delay information
-    frame_last_delay = pts_delay;
     frame_last_pts = pts;
+    frame_last_delay = pts_delay;
 
-    double sync_threshold =
-        (pts_delay > AV_SYNC_THRESHOLD) ? pts_delay : AV_SYNC_THRESHOLD;
+    if (master_sync != MasterSync::AV_SYNC_VIDEO) {
+      if (master_sync == MasterSync::AV_SYNC_AUDIO) {
+        master_clock = get_audio_clock();
+      } else {
+        master_clock = external_clock;
+      }
 
-    av_delay = 0;
-    if (audio_st) {
-      double audio_video_delay = pts - audio_ref_clock;
+      double video_diff = pts - master_clock;
+
+      double sync_threshold =
+          (pts_delay > AV_SYNC_THRESHOLD) ? pts_delay : AV_SYNC_THRESHOLD;
 
       // check if audio video delay is below sync threshold
-      if (fabs(audio_video_delay) > sync_threshold) {
-        av_delay = audio_video_delay;
+      // if (fabs(video_diff) < AV_NOSYNC_THRESHOLD) {
+      if (video_diff <= -sync_threshold) {
+        gotFrame();
+        return getFrame(external_clock);
+      } else if (video_diff >= sync_threshold) {
+        return nullptr;
       }
+      // }
     }
 
     return (uint8_t *)*frame->extended_data; // same as data[0]
@@ -677,6 +767,14 @@ int VideoReader::audio_decode_frame() {
     return 0;
   }
 
+  // flush buffer if flush packet
+  if (audio_flush_requested) {
+    // if (audio_pkt->data == flush_pkt.data) {
+    avcodec_flush_buffers(audio_ctx);
+    audio_flush_requested = false;
+    return data_size;
+  }
+
   // send packet to audio codec
   if (avcodec_send_packet(audio_ctx, audio_pkt) < 0) {
     std::cerr << "Error sending audio packet for decoding" << std::endl;
@@ -691,17 +789,9 @@ int VideoReader::audio_decode_frame() {
   return data_size;
 }
 
-void VideoReader::updateAudioRef() {
-  audio_ref_clock = audio_clock - (double)audio_buffer[0].readSpace() *
-                                      audio_ctx->channels / audio_data_rate;
-
-  // static int count = 0;
-  // count++;
-
-  // if (count % 10) {
-  //   std::cout << "  audiob: " << audio_buffer[0].readSpace() << " / "
-  //             << AUDIO_BUFFER_SIZE << std::endl;
-  // }
+double VideoReader::get_audio_clock() {
+  return audio_clock - (double)audio_buffer[0].readSpace() *
+                           audio_ctx->channels / audio_data_rate;
 }
 
 void VideoReader::packet_queue_init(PacketQueue *pktq) { pktq->dataSize = 0; }
@@ -745,6 +835,28 @@ int VideoReader::packet_queue_get(PacketQueue *pktq, AVPacket *packet,
 
   // global quit flag has been set
   return -1;
+}
+
+void VideoReader::packet_queue_flush(PacketQueue *pktq) {
+  // acquire packet queue mutex
+  std::unique_lock<std::mutex> lk(pktq->mutex);
+
+  while (!pktq->queue.empty()) {
+    AVPacket *pkt = pktq->queue.front();
+    av_packet_unref(pkt);
+    av_freep(&pkt);
+    pktq->queue.pop();
+  }
+
+  pktq->dataSize = 0;
+}
+
+void VideoReader::stream_seek(int64_t pos, int rel) {
+  if (!seek_requested) {
+    seek_pos = pos;
+    seek_flags = rel < 0 ? AVSEEK_FLAG_BACKWARD : 0;
+    seek_requested = 1;
+  }
 }
 
 void VideoReader::cleanup() {

@@ -6,16 +6,14 @@
 #include "al/sound/al_Ambisonics.hpp"
 #include "al_VideoReader.hpp"
 
-typedef struct {
-  int frameNum = 0;
-  bool diagnostics{false};
+typedef struct SharedState {
+  double global_clock;
 } SharedState;
 
 namespace al {
 
 class VideoApp : public DistributedAppWithState<SharedState> {
 public:
-  ParameterBool syncToMTC{"syncToMTC"};
   VideoApp();
 
   virtual ~VideoApp() {}
@@ -29,6 +27,7 @@ public:
   virtual void onExit() override;
 
   int addSphereWithEquirectTex(Mesh &m, double radius, int bands);
+
   void configureAudio();
 
   void setVideoFile(std::string videoFileUrl) {
@@ -45,16 +44,18 @@ private:
   bool mUniformChanged{false};
 
   VideoReader videoReader;
-  bool frameFinished{false};
-
-  MTCReader mtcReader;
+  std::string mVideoFileToLoad;
 
   AmbiDecode ambisonics{3, 1, 2, 2};
   bool decodeAmbisonics{false};
 
-  bool mPlaying{false};
+  MTCReader mtcReader;
+  int lastFrameNum;
 
-  std::string mVideoFileToLoad;
+  bool mPlaying{false};
+  bool mShowDiagnostic{false};
+
+  ParameterBool syncToMTC{"syncToMTC"};
 };
 
 } // namespace al
