@@ -33,8 +33,7 @@ void VideoReader::init() {
   seek_requested = 0;
   seek_flags = 0;
   seek_pos = 0;
-  video_flush_requested = false;
-  audio_flush_requested = false;
+  seek_diff_count = 0;
 
   decode_thread = nullptr;
   video_thread = nullptr;
@@ -267,6 +266,12 @@ void VideoReader::decodeThreadFunction(VideoReader *reader) {
   // allocate packet
   AVPacket *packet = av_packet_alloc();
 
+  reader->flush_pkt = av_packet_alloc();
+
+  av_new_packet(reader->flush_pkt, 6);
+
+  reader->flush_pkt->data = (uint8_t *)"FLUSH";
+
   // check global quit flag
   while (reader->global_quit == 0) {
     if (reader->seek_requested) {
@@ -277,7 +282,7 @@ void VideoReader::decodeThreadFunction(VideoReader *reader) {
 
       if (reader->video_st)
         video_stream_index = reader->video_st_idx;
-      if (reader->audio_st)
+      if (reader->audio_st && reader->audio_enabled)
         audio_stream_index = reader->audio_st_idx;
 
       if (video_stream_index >= 0) {
@@ -293,7 +298,7 @@ void VideoReader::decodeThreadFunction(VideoReader *reader) {
 
       int ret = av_seek_frame(reader->pFormatCtx, video_stream_index,
                               video_seek_target, reader->seek_flags);
-      if (reader->audio_st)
+      if (reader->audio_st && reader->audio_enabled)
         ret &= av_seek_frame(reader->pFormatCtx, audio_stream_index,
                              audio_seek_target, reader->seek_flags);
 
@@ -302,25 +307,16 @@ void VideoReader::decodeThreadFunction(VideoReader *reader) {
       } else {
         if (reader->video_st) {
           reader->packet_queue_flush(&reader->videoq);
-          // TODO: remove
-          // reader->packet_queue_put(&reader->videoq, &reader->flush_pkt);
-          reader->video_flush_requested = true;
+          reader->packet_queue_put(&reader->videoq, reader->flush_pkt);
         }
-        if (reader->audio_st) {
+        if (reader->audio_st && reader->audio_enabled) {
           reader->packet_queue_flush(&reader->audioq);
-          // reader->packet_queue_put(&reader->audioq, &reader->flush_pkt);
-          reader->audio_flush_requested = true;
+          reader->packet_queue_put(&reader->audioq, reader->flush_pkt);
         }
       }
 
       reader->seek_requested = 0;
     }
-
-    // TODO: move this into diagnostic
-    // std::cout << "audioq: " << reader->audioq.dataSize << " / "
-    //           << MAX_AUDIOQ_SIZE << std::endl;
-    // std::cout << " videoq: " << reader->videoq.dataSize << " / "
-    //           << MAX_VIDEOQ_SIZE << std::endl;
 
     // TODO: review wait condition
     // if queues are full, wait 10ms and retry
@@ -358,9 +354,12 @@ void VideoReader::decodeThreadFunction(VideoReader *reader) {
     }
   }
 
+  // TODO: review dealloc functions
   // free the memory
   av_packet_unref(packet);
   av_packet_free(&packet);
+
+  av_packet_free(&reader->flush_pkt);
 
   // TODO: check quit conditions
   // wait for rest of program to end
@@ -431,19 +430,20 @@ void VideoReader::videoThreadFunction(VideoReader *reader) {
       break;
     }
 
-    // std::cout << " pictq: " << reader->pictq.size << " / " << PICTQ_SIZE
-    //           << std::endl;
-
     // get video packet from the queue
     if (reader->packet_queue_get(&reader->videoq, video_pkt, 1) < 0) {
       // global quit flag has been set
       break;
     }
 
-    if (reader->video_flush_requested) {
-      // if (video_pkt->data == reader->flush_pkt.data) {
+    if (video_pkt->data == reader->flush_pkt->data) {
       avcodec_flush_buffers(reader->video_ctx);
-      reader->video_flush_requested = false;
+      // // TODO: this might not be needed
+      // std::unique_lock<std::mutex> lk(reader->pictq.mutex);
+      // reader->pictq.read_index = 0;
+      // reader->pictq.write_index = 0;
+      // reader->pictq.size = 0;
+      // reader->pictq.cond.notify_one();
       continue;
     }
 
@@ -632,6 +632,7 @@ uint8_t *VideoReader::getFrame(double &external_clock) {
   } else {
     AVFrame *frame = pictq.queue[pictq.read_index];
     double &pts = pictq.pts[pictq.read_index];
+    // std::cout << " pts(read): " << pts << std::endl;
 
     // get last frame pts
     double pts_delay = pts - frame_last_pts;
@@ -659,14 +660,24 @@ uint8_t *VideoReader::getFrame(double &external_clock) {
           (pts_delay > AV_SYNC_THRESHOLD) ? pts_delay : AV_SYNC_THRESHOLD;
 
       // check if audio video delay is below sync threshold
-      // if (fabs(video_diff) < AV_NOSYNC_THRESHOLD) {
-      if (video_diff <= -sync_threshold) {
+      if (fabs(video_diff) < AV_NOSYNC_THRESHOLD) {
+        if (video_diff <= -sync_threshold) {
+          gotFrame();
+          return getFrame(external_clock);
+        } else if (video_diff >= sync_threshold) {
+          return nullptr;
+        }
+      } else {
+        // TODO: utilize dts to handle edge cases
+        if (video_diff > 0) {
+          ++seek_diff_count;
+          if (seek_diff_count > 6)
+            return nullptr;
+        }
+
         gotFrame();
         return getFrame(external_clock);
-      } else if (video_diff >= sync_threshold) {
-        return nullptr;
       }
-      // }
     }
 
     return (uint8_t *)*frame->extended_data; // same as data[0]
@@ -768,10 +779,8 @@ int VideoReader::audio_decode_frame() {
   }
 
   // flush buffer if flush packet
-  if (audio_flush_requested) {
-    // if (audio_pkt->data == flush_pkt.data) {
+  if (audio_pkt->data == flush_pkt->data) {
     avcodec_flush_buffers(audio_ctx);
-    audio_flush_requested = false;
     return data_size;
   }
 
@@ -800,6 +809,7 @@ void VideoReader::packet_queue_put(PacketQueue *pktq, AVPacket *packet) {
   // acquire packet queue mutex
   std::unique_lock<std::mutex> lk(pktq->mutex);
 
+  // TODO: check unref, av_packet_ref
   // need to clone the packet to properly allocate and hand over refs
   pktq->queue.push(av_packet_clone(packet));
   pktq->dataSize += packet->size;
@@ -843,9 +853,8 @@ void VideoReader::packet_queue_flush(PacketQueue *pktq) {
 
   while (!pktq->queue.empty()) {
     AVPacket *pkt = pktq->queue.front();
-    av_packet_unref(pkt);
-    av_freep(&pkt);
     pktq->queue.pop();
+    av_packet_free(&pkt);
   }
 
   pktq->dataSize = 0;
@@ -854,8 +863,9 @@ void VideoReader::packet_queue_flush(PacketQueue *pktq) {
 void VideoReader::stream_seek(int64_t pos, int rel) {
   if (!seek_requested) {
     seek_pos = pos;
-    seek_flags = rel < 0 ? AVSEEK_FLAG_BACKWARD : 0;
+    seek_flags = (rel < 0) ? AVSEEK_FLAG_BACKWARD : 0;
     seek_requested = 1;
+    seek_diff_count = 0;
   }
 }
 

@@ -81,6 +81,10 @@ public:
   int height();
   double fps();
 
+  // packet queue status
+  int audioq_dataSize() { return audioq.dataSize; };
+  int videoq_dataSize() { return videoq.dataSize; };
+
   // get the next frame data
   uint8_t *getFrame(double &external_clock);
   // notify frame has been rendered
@@ -169,8 +173,8 @@ private:
   int seek_requested;
   int seek_flags;
   int64_t seek_pos;
-  bool video_flush_requested;
-  bool audio_flush_requested;
+  AVPacket *flush_pkt;
+  int seek_diff_count;
 
   // ** Threads **
   std::thread *decode_thread;

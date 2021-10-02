@@ -24,10 +24,10 @@ int main(int argc, char *argv[]) {
 
     // videoUrl = "c:/Users/Andres/Downloads/"
     //            "LastWhispers_040719_ambix_360.mp4";
-    videoUrl = "/Users/cannedstar/code/video_player/data/"
-               "LastWhispers_040719_ambix_360.mp4";
-    // videoUrl =
-    //     "/Users/cannedstar/code/video_player/data/Iron_Man-Trailer_HD.mp4";
+    // videoUrl = "/Users/cannedstar/code/video_player/data/"
+    //            "LastWhispers_040719_ambix_360.mp4";
+    videoUrl =
+        "/Users/cannedstar/code/video_player/data/Iron_Man-Trailer_HD.mp4";
     // videoUrl = "/Users/cannedstar/code/video_player/data/test.mov";
   }
 

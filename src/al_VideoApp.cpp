@@ -251,6 +251,20 @@ void VideoApp::onDraw(Graphics &g) {
             .c_str(),
         {-0.7, 0.4, -2}, 0.05);
 
+    FontRenderer::render(
+        g,
+        ("audioq: " + std::to_string(videoReader.audioq_dataSize()) + "/" +
+         std::to_string(MAX_AUDIOQ_SIZE))
+            .c_str(),
+        {-0.7, 0.35, -2}, 0.05);
+
+    FontRenderer::render(
+        g,
+        ("videoq: " + std::to_string(videoReader.videoq_dataSize()) + "/" +
+         std::to_string(MAX_VIDEOQ_SIZE))
+            .c_str(),
+        {-0.7, 0.3, -2}, 0.05);
+
     if (hasCapability(Capability::CAP_2DGUI)) {
       imguiDraw();
     }
@@ -324,13 +338,18 @@ bool VideoApp::onKeyDown(const Keyboard &k) {
     if (isPrimary()) {
       // TODO: implement get_master_clock
       double pos = state().global_clock;
-      pos -= 10.0;
-      state().global_clock -= 10.0;
+      double diff = -10.0;
+      pos += diff;
+      if (pos < 0) {
+        pos = 0;
+      }
+      state().global_clock = pos;
       videoReader.stream_seek((int64_t)(pos * AV_TIME_BASE), -10.0);
     }
   } else if (k.key() == ']') {
     if (isPrimary()) {
       // TODO: implement get_master_clock
+      // TODO: get end pos
       double pos = state().global_clock;
       pos += 10.0;
       state().global_clock += 10.0;
