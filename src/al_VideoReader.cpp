@@ -439,10 +439,10 @@ void VideoReader::videoThreadFunction(VideoReader *reader) {
     if (video_pkt->data == reader->flush_pkt->data) {
       avcodec_flush_buffers(reader->video_ctx);
       // // TODO: this might not be needed
-      // std::unique_lock<std::mutex> lk(reader->pictq.mutex);
-      // reader->pictq.read_index = 0;
-      // reader->pictq.write_index = 0;
-      // reader->pictq.size = 0;
+      std::unique_lock<std::mutex> lk(reader->pictq.mutex);
+      reader->pictq.read_index = 0;
+      reader->pictq.write_index = 0;
+      reader->pictq.size = 0;
       // reader->pictq.cond.notify_one();
       continue;
     }
@@ -668,10 +668,11 @@ uint8_t *VideoReader::getFrame(double &external_clock) {
           return nullptr;
         }
       } else {
+        // std::cout << video_diff << std::endl;
         // TODO: utilize dts to handle edge cases
         if (video_diff > 0) {
           ++seek_diff_count;
-          if (seek_diff_count > 6)
+          if (seek_diff_count > PICTQ_SIZE + 2)
             return nullptr;
         }
 
