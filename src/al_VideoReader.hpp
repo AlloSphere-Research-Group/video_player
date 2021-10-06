@@ -23,7 +23,7 @@ static const int AUDIO_BUFFER_SIZE = 8192 * 10; // 24
 static const int AUDIO_BUFFER_REFRESH_THRESHOLD = 8192;
 static const int MAX_AUDIOQ_SIZE = (5 * 16 * 1024 * 4);
 static const int MAX_VIDEOQ_SIZE = (5 * 256 * 1024); // * 16
-static const int PICTQ_SIZE = 1;
+static const int PICTQ_SIZE = 8;
 static const double AV_SYNC_THRESHOLD = 0.01;
 static const double AV_NOSYNC_THRESHOLD = 1.0;
 
@@ -82,8 +82,11 @@ public:
   double fps();
 
   // packet queue status
-  int audioq_dataSize() { return audioq.dataSize; };
-  int videoq_dataSize() { return videoq.dataSize; };
+  int audioq_size() { return audioq.dataSize; };
+  int videoq_size() { return videoq.dataSize; };
+  int pictq_size() { return pictq.size; };
+
+  double getPTS() { return frame_last_pts; }
 
   // get the next frame data
   uint8_t *getFrame(double &external_clock);

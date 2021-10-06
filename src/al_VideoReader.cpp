@@ -356,7 +356,6 @@ void VideoReader::decodeThreadFunction(VideoReader *reader) {
 
   // TODO: review dealloc functions
   // free the memory
-  av_packet_unref(packet);
   av_packet_free(&packet);
 
   av_packet_free(&reader->flush_pkt);
@@ -826,12 +825,14 @@ int VideoReader::packet_queue_get(PacketQueue *pktq, AVPacket *packet,
 
   while (global_quit == 0) {
     if (!pktq->queue.empty()) {
+      AVPacket *queue_pkt = pktq->queue.front();
       // copy contents from queue
-      *packet = *(pktq->queue.front());
+      av_packet_ref(packet, queue_pkt);
       pktq->dataSize -= packet->size;
 
       // pop handles deallocation
       pktq->queue.pop();
+      av_packet_free(&queue_pkt);
 
       // successful packet retrieval
       return 1;
@@ -877,7 +878,6 @@ void VideoReader::cleanup() {
     av_free(audio_frame);
 
     // Free the audio packet
-    av_packet_unref(audio_pkt);
     av_packet_free(&audio_pkt);
 
     // Close the audio codec

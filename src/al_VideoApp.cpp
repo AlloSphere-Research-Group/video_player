@@ -245,19 +245,35 @@ void VideoApp::onDraw(Graphics &g) {
         g, ("Clock: " + std::to_string(state().global_clock)).c_str(),
         {-0.7, 0.45, -2}, 0.05);
 
+    // FontRenderer::render(
+    //     g,
+    //     ("FPS: " + std::to_string(1.0 / simulationDomain()->timeDelta()))
+    //         .c_str(),
+    //     {-0.7, 0.4, -2}, 0.05);
+
     FontRenderer::render(
-        g,
-        ("audioq: " + std::to_string(videoReader.audioq_dataSize()) + "/" +
-         std::to_string(MAX_AUDIOQ_SIZE))
-            .c_str(),
+        g, ("Last PTS: " + std::to_string(videoReader.getPTS())).c_str(),
         {-0.7, 0.4, -2}, 0.05);
 
     FontRenderer::render(
         g,
-        ("videoq: " + std::to_string(videoReader.videoq_dataSize()) + "/" +
-         std::to_string(MAX_VIDEOQ_SIZE))
+        ("audioq: " + std::to_string(videoReader.audioq_size()) + "/" +
+         std::to_string(MAX_AUDIOQ_SIZE))
             .c_str(),
         {-0.7, 0.35, -2}, 0.05);
+
+    FontRenderer::render(
+        g,
+        ("videoq: " + std::to_string(videoReader.videoq_size()) + "/" +
+         std::to_string(MAX_VIDEOQ_SIZE))
+            .c_str(),
+        {-0.7, 0.3, -2}, 0.05);
+
+    FontRenderer::render(g,
+                         ("pictq: " + std::to_string(videoReader.pictq_size()) +
+                          "/" + std::to_string(PICTQ_SIZE))
+                             .c_str(),
+                         {-0.7, 0.25, -2}, 0.05);
 
     if (hasCapability(Capability::CAP_2DGUI)) {
       imguiDraw();
