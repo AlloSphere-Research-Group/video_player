@@ -4,7 +4,7 @@
 #include "MTCReader.hpp"
 #include "al/app/al_DistributedApp.hpp"
 #include "al/sound/al_Ambisonics.hpp"
-#include "al_VideoReader.hpp"
+#include "al_VideoDecoder.hpp"
 
 typedef struct SharedState {
   double global_clock;
@@ -43,14 +43,13 @@ private:
   float mExposure;
   bool mUniformChanged{false};
 
-  VideoReader videoReader;
+  VideoDecoder videoDecoder;
   std::string mVideoFileToLoad;
 
   AmbiDecode ambisonics{3, 1, 2, 2};
   bool decodeAmbisonics{false};
 
   MTCReader mtcReader;
-  int lastFrameNum;
 
   bool mPlaying{false};
   bool mShowDiagnostic{false};
