@@ -19,8 +19,8 @@ extern "C" {
 
 using namespace al;
 
-static const int AUDIO_BUFFER_SIZE = 1;
-static const int VIDEO_BUFFER_SIZE = 1;
+static const int AUDIO_BUFFER_SIZE = 8;
+static const int VIDEO_BUFFER_SIZE = 8;
 static const double AV_SYNC_THRESHOLD = 0.01;
 static const double AV_NOSYNC_THRESHOLD = 1.0;
 
@@ -34,17 +34,18 @@ struct VideoState {
   int video_st_idx;
   AVStream *video_st;
   AVCodecContext *video_ctx;
-  struct SwsContext *sws_ctx; // software scaling context
-  MediaBuffer *video_buffer;
+  struct SwsContext *sws_ctx;
+  MediaBuffer *video_frames;
 
   // ** Audio Stream **
   bool audio_enabled;
   int audio_st_idx;
   AVStream *audio_st;
   AVCodecContext *audio_ctx;
-  MediaBuffer *audio_buffer;
+  MediaBuffer *audio_frames;
   int audio_sample_size;
-  int audio_data_rate;
+  int audio_channel_size;
+  int audio_frame_size;
 
   // ** Sync **
   MasterSync master_sync{MasterSync::AV_SYNC_EXTERNAL};
@@ -82,10 +83,12 @@ public:
   void start();
 
   // get the next frame data
-  uint8_t *getFrame(double &external_clock);
+  uint8_t *getFrame(double external_clock = -1);
 
   // notify frame has been rendered
   void gotFrame();
+
+  uint8_t *getAudioFrame();
 
   void stream_seek(int64_t pos, int rel);
 
@@ -106,8 +109,9 @@ public:
   bool hasAudio() { return video_state.audio_st != nullptr; }
 
   // get audio parameters
-  int audioSampleRate();
-  int audioNumChannels();
+  unsigned int audioSampleRate();
+  unsigned int audioNumChannels();
+  unsigned int audioSamplesPerChannel();
 
   // get video parameters
   int width();
@@ -140,7 +144,10 @@ private:
 
   VideoState video_state;
 
+  MediaFrame video_output;
   MediaBuffer video_buffer;
+
+  MediaFrame audio_output;
   MediaBuffer audio_buffer;
 
   // ** Threads **

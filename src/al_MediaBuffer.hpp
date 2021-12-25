@@ -29,11 +29,11 @@ public:
 
   bool put(MediaFrame &&mFrame) {
     if (valid[writePos]) {
-      std::cerr << "Buffer pos already occupied: " << writePos << std::endl;
+      // std::cerr << "Buffer pos already occupied: " << writePos << std::endl;
       return false;
     }
 
-    std::cout << "Writing at buffer: " << writePos << std::endl;
+    // std::cout << "Writing at buffer: " << writePos << std::endl;
 
     // possible unnecessary memory copy
     frames[writePos] = std::move(mFrame);
@@ -45,11 +45,11 @@ public:
 
   bool get(MediaFrame &mFrame) {
     if (!valid[readPos]) {
-      std::cerr << "Buffer pos empty: " << readPos << std::endl;
+      // std::cerr << "Buffer pos empty: " << readPos << std::endl;
       return false;
     }
 
-    std::cout << "Reading at buffer: " << readPos << std::endl;
+    // std::cout << "Reading at buffer: " << readPos << std::endl;
 
     // possible unnecessary memory copy
     mFrame = std::move(frames[readPos]);

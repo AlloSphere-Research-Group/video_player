@@ -51,7 +51,7 @@ private:
 
   MTCReader mtcReader;
 
-  bool mPlaying{false};
+  bool mPlaying{true};
   bool mShowDiagnostic{false};
 
   ParameterBool syncToMTC{"syncToMTC"};

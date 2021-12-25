@@ -9,15 +9,16 @@ void VideoDecoder::init() {
   video_state.video_st = nullptr;
   video_state.video_ctx = nullptr;
   video_state.sws_ctx = nullptr;
-  video_state.video_buffer = nullptr;
+  video_state.video_frames = nullptr;
 
   video_state.audio_enabled = true;
   video_state.audio_st_idx = -1;
   video_state.audio_st = nullptr;
   video_state.audio_ctx = nullptr;
-  video_state.audio_buffer = nullptr;
+  video_state.audio_frames = nullptr;
   video_state.audio_sample_size = 0;
-  video_state.audio_data_rate = 0;
+  video_state.audio_channel_size = 0;
+  video_state.audio_frame_size = 0;
 
   video_state.master_sync = MasterSync::AV_SYNC_EXTERNAL;
   video_state.video_clock = 0;
@@ -86,7 +87,11 @@ bool VideoDecoder::load(const char *url) {
       std::cerr << "Could not open audio codec" << std::endl;
       return false;
     }
+
+    video_state.audio_frames = &audio_buffer;
   }
+
+  video_state.video_frames = &video_buffer;
 
   // TODO: add initialization notice to videoapp
   return true;
@@ -128,12 +133,6 @@ bool VideoDecoder::stream_component_open(VideoState *vs, int stream_index) {
     vs->audio_st = vs->format_ctx->streams[stream_index];
     vs->audio_ctx = codecCtx;
 
-    // allocate audio buffer
-    // TODO: allocate mediabuffer
-    // for (int i = 0; i < audio_ctx->channels; i++) {
-    //   audio_buffer.emplace_back(SingleRWRingBuffer{AUDIO_BUFFER_SIZE});
-    // }
-
     // set parameters
     vs->audio_sample_size = av_get_bytes_per_sample(vs->audio_ctx->sample_fmt);
     if (vs->audio_sample_size < 0) {
@@ -141,11 +140,11 @@ bool VideoDecoder::stream_component_open(VideoState *vs, int stream_index) {
       return false;
     }
 
-    vs->audio_data_rate = vs->audio_sample_size * vs->audio_ctx->channels *
-                          vs->audio_ctx->sample_rate;
+    vs->audio_channel_size = vs->audio_sample_size * vs->audio_ctx->frame_size;
 
+    vs->audio_frame_size = vs->audio_sample_size * vs->audio_ctx->frame_size *
+                           vs->audio_ctx->channels;
   } break;
-
   case AVMEDIA_TYPE_VIDEO: {
     vs->video_st = vs->format_ctx->streams[stream_index];
     vs->video_ctx = codecCtx;
@@ -198,64 +197,28 @@ void VideoDecoder::decodeThreadFunction(VideoState *vs) {
     return;
   }
 
+  // allocate frame
+  AVFrame *frameRGB = av_frame_alloc();
+  if (!frameRGB) {
+    std::cerr << "Could not allocate frameRGB" << std::endl;
+    vs->global_quit = -1;
+    return;
+  }
+
   int numBytes = av_image_get_buffer_size(AV_PIX_FMT_RGBA, vs->video_ctx->width,
                                           vs->video_ctx->height, 32);
   uint8_t *buffer = (uint8_t *)av_malloc(numBytes * sizeof(uint8_t));
 
+  // Setup pointers and linesize for dst frame and image data buffer
+  av_image_fill_arrays(frameRGB->data, frameRGB->linesize, buffer,
+                       AV_PIX_FMT_RGBA, vs->video_ctx->width,
+                       vs->video_ctx->height, 32);
+
+  uint8_t *audio_out =
+      (uint8_t *)av_malloc(vs->audio_frame_size * sizeof(uint8_t));
+
   // check global quit flag
   while (vs->global_quit == 0) {
-    // if (reader->seek_requested) {
-    //   int video_stream_index = -1;
-    //   int audio_stream_index = -1;
-    //   int64_t video_seek_target = reader->seek_pos;
-    //   int64_t audio_seek_target = reader->seek_pos;
-
-    //   if (reader->video_st)
-    //     video_stream_index = reader->video_st_idx;
-    //   if (reader->audio_st && reader->audio_enabled)
-    //     audio_stream_index = reader->audio_st_idx;
-
-    //   if (video_stream_index >= 0) {
-    //     video_seek_target = av_rescale_q(
-    //         video_seek_target, AV_TIME_BASE_Q,
-    //         reader->formatCtx->streams[video_stream_index]->time_base);
-    //   }
-    //   if (audio_stream_index >= 0) {
-    //     audio_seek_target = av_rescale_q(
-    //         audio_seek_target, AV_TIME_BASE_Q,
-    //         reader->formatCtx->streams[audio_stream_index]->time_base);
-    //   }
-
-    //   int ret = av_seek_frame(reader->formatCtx, video_stream_index,
-    //                           video_seek_target, reader->seek_flags);
-    //   if (reader->audio_st && reader->audio_enabled)
-    //     ret &= av_seek_frame(reader->formatCtx, audio_stream_index,
-    //                          audio_seek_target, reader->seek_flags);
-
-    //   if (ret < 0) {
-    //     std::cerr << "Error while seeking" << std::endl;
-    //   } else {
-    //     if (reader->video_st) {
-    //       reader->packet_queue_flush(&reader->videoq);
-    //       reader->packet_queue_put(&reader->videoq, reader->flush_pkt);
-    //     }
-    //     if (reader->audio_st && reader->audio_enabled) {
-    //       reader->packet_queue_flush(&reader->audioq);
-    //       reader->packet_queue_put(&reader->audioq, reader->flush_pkt);
-    //     }
-    //   }
-
-    //   reader->seek_requested = 0;
-    // }
-
-    // if queues are full, wait 10ms and retry
-    // if (reader->audioq.dataSize > MAX_AUDIOQ_SIZE ||
-    //     reader->videoq.dataSize > MAX_VIDEOQ_SIZE) {
-    //   al_sleep_nsec(10000000); // 10 ms
-    //   std::cout << "decode thread" << std::endl;
-    //   continue;
-    // }
-
     // read the next frame
     if (av_read_frame(vs->format_ctx, packet) < 0) {
       // no read error; wait for file
@@ -268,307 +231,205 @@ void VideoDecoder::decodeThreadFunction(VideoState *vs) {
       }
     }
 
-    // put packet in correct queue
+    // check the type of packet
     if (packet->stream_index == vs->video_st_idx) {
-      // reader->packet_queue_put(&reader->videoq, packet);
+      // send raw compressed video data in AVPacket to decoder
+      if (avcodec_send_packet(vs->video_ctx, packet) < 0) {
+        std::cerr << "Error sending video packet for decoding" << std::endl;
+        break;
+      }
+
+      while (vs->global_quit == 0) {
+        // get decoded output data from decoder
+        int ret = avcodec_receive_frame(vs->video_ctx, frame);
+
+        // check if entire frame was decoded
+        if (ret == AVERROR(EAGAIN)) {
+          // need more data
+          break;
+        } else if (ret == AVERROR_EOF) {
+          vs->global_quit = 1;
+          break;
+        } else if (ret < 0) {
+          std::cerr << "Error while decoding" << std::endl;
+          vs->global_quit = -1;
+          break;
+        }
+
+        // get the estimated time stamp
+        double pts = frame->best_effort_timestamp;
+
+        // if guess failed
+        if (pts == AV_NOPTS_VALUE) {
+          // if we don't have a pts, use the video clock
+          pts = vs->video_clock;
+        } else {
+          // convert pts using video stream's time base
+          pts *= av_q2d(vs->video_st->time_base);
+
+          // if we have pts, set the video_clock to it
+          vs->video_clock = pts;
+        }
+
+        // update video clock if frame is delayed
+        vs->video_clock +=
+            0.5 * av_q2d(vs->video_st->time_base) * frame->repeat_pict;
+
+        // scale image in frame and put results in frameRGB
+        sws_scale(vs->sws_ctx, (uint8_t const *const *)frame->data,
+                  frame->linesize, 0, vs->video_ctx->height, frameRGB->data,
+                  frameRGB->linesize);
+
+        while (!vs->video_frames->put(MediaFrame(buffer, numBytes, pts))) {
+          if (vs->global_quit != 0) {
+            break;
+          }
+        }
+      }
     } else if (packet->stream_index == vs->audio_st_idx) {
-      // audio output has been disabled
+      // skip if audio has been disabled
       if (!vs->audio_enabled) {
         av_packet_unref(packet);
         continue;
       }
-      // reader->packet_queue_put(&reader->audioq, packet);
+
+      if (avcodec_send_packet(vs->audio_ctx, packet) < 0) {
+        std::cerr << "Error sending audio packet for decoding" << std::endl;
+        break;
+      }
+
+      while (vs->global_quit == 0) {
+        // get decoded output data from decoder
+        int ret = avcodec_receive_frame(vs->audio_ctx, frame);
+
+        // check if entire frame was decoded
+        if (ret == AVERROR(EAGAIN)) {
+          // need more data
+          break;
+        } else if (ret == AVERROR_EOF) {
+          vs->global_quit = 1;
+          break;
+        } else if (ret < 0) {
+          std::cerr << "Error while decoding" << std::endl;
+          vs->global_quit = -1;
+          break;
+        }
+
+        // get the estimated time stamp
+        double pts = frame->best_effort_timestamp;
+
+        // if guess failed
+        if (pts == AV_NOPTS_VALUE) {
+          // if we don't have a pts, use the audio clock
+          pts = vs->audio_clock;
+        } else {
+          // convert pts using video stream's time base
+          pts *= av_q2d(vs->audio_st->time_base);
+
+          // if we have a pts, set the audio clock
+          vs->audio_clock = pts;
+        }
+
+        // update audio clock if frame is delayed
+        vs->audio_clock +=
+            0.5 * av_q2d(vs->audio_st->time_base) * frame->repeat_pict;
+
+        for (int i = 0; i < vs->audio_ctx->channels; ++i) {
+          memcpy(audio_out + i * vs->audio_channel_size, frame->data[i],
+                 vs->audio_channel_size);
+        }
+
+        while (!vs->audio_frames->put(
+            MediaFrame(audio_out, vs->audio_frame_size, pts))) {
+          if (vs->global_quit != 0) {
+            break;
+          }
+        }
+      }
     }
 
     // wipe the packet
     av_packet_unref(packet);
   }
-
   // free the memory
-  av_freep(buffer);
+  av_freep(&audio_out);
+  av_freep(&buffer);
+  av_frame_free(&frameRGB);
   av_frame_free(&frame);
   av_packet_free(&packet);
-
-  return;
 }
 
-// void VideoDecoder::videoThreadFunction(VideoDecoder *reader) {
-//   // TODO: check buffer release
-//   // Setup pointers and linesize for dst frame and image data buffer
-//   av_image_fill_arrays(reader->pictq.queue[index]->data,
-//                        reader->pictq.queue[index]->linesize, buffer,
-//                        AV_PIX_FMT_RGBA, reader->video_ctx->width,
-//                        reader->video_ctx->height, 32);
-// }
+uint8_t *VideoDecoder::getFrame(double external_clock) {
+  // TODO: seeking
 
-// // PTS of the video frame
-// double pts = 0;
+  while (!video_buffer.get(video_output)) {
+    if (video_state.global_quit != 0)
+      return nullptr;
+  }
 
-// while (!should_quit) {
-//   if (reader->global_quit != 0) {
-//     break;
-//   }
+  return video_output.data.data();
 
-//   // get video packet from the queue
-//   if (reader->packet_queue_get(&reader->videoq, video_pkt, 1) < 0) {
-//     // global quit flag has been set
-//     break;
-//   }
+  // // check picture queue contains decoded frames
+  // if (pictq.size == 0) {
+  //   // skip updating texture this frame
+  //   return nullptr;
+  // } else {
+  //   AVFrame *frame = pictq.queue[pictq.read_index];
+  //   double &pts = pictq.pts[pictq.read_index];
+  //   // std::cout << " pts(read): " << pts << std::endl;
 
-//   if (video_pkt->data == reader->flush_pkt->data) {
-//     avcodec_flush_buffers(reader->video_ctx);
-//     // // TODO: this might not be needed
-//     std::unique_lock<std::mutex> lk(reader->pictq.mutex);
-//     reader->pictq.read_index = 0;
-//     reader->pictq.write_index = 0;
-//     reader->pictq.size = 0;
-//     // reader->pictq.cond.notify_one();
-//     continue;
-//   }
+  //   // get last frame pts
+  //   double pts_delay = pts - frame_last_pts;
 
-//   // send raw compressed video data in AVPacket to decoder
-//   if (avcodec_send_packet(reader->video_ctx, video_pkt) < 0) {
-//     std::cerr << "Error sending video packet for decoding" << std::endl;
-//     break;
-//   }
+  //   // check if obtained delay is invalid
+  //   if (pts_delay <= 0 || pts_delay >= 1.0) {
+  //     // use previous calculated delay
+  //     pts_delay = frame_last_delay;
+  //   }
 
-//   while (true) {
-//     // get decoded output data from decoder
-//     int ret = avcodec_receive_frame(reader->video_ctx, video_frame);
+  //   // save delay information
+  //   frame_last_pts = pts;
+  //   frame_last_delay = pts_delay;
 
-//     // check if entire frame was decoded
-//     if (ret == AVERROR(EAGAIN)) {
-//       // need more data
-//       break;
-//     } else if (ret == AVERROR_EOF) {
-//       should_quit = true;
-//       break;
-//     } else if (ret < 0) {
-//       std::cerr << "Error while decoding" << std::endl;
-//       reader->global_quit = -1;
-//       should_quit = true;
-//       break;
-//     }
+  //   if (master_sync != MasterSync::AV_SYNC_VIDEO) {
+  //     if (master_sync == MasterSync::AV_SYNC_AUDIO) {
+  //       master_clock = get_audio_clock();
+  //     } else {
+  //       master_clock = external_clock;
+  //     }
 
-//     // atempt to guess proper time stamp
-//     pts = reader->guess_correct_pts(reader->video_ctx, video_frame->pts,
-//                                     video_frame->pkt_dts);
+  //     double video_diff = pts - master_clock;
 
-//     // if guess failed
-//     if (pts == AV_NOPTS_VALUE) {
-//       // set pts to the default value of 0
-//       pts = 0;
-//     }
+  //     double sync_threshold =
+  //         (pts_delay > AV_SYNC_THRESHOLD) ? pts_delay : AV_SYNC_THRESHOLD;
 
-//     // convert pts using video stream's time base
-//     pts *= av_q2d(reader->video_st->time_base);
+  //     // check if audio video delay is below sync threshold
+  //     if (fabs(video_diff) < AV_NOSYNC_THRESHOLD) {
+  //       if (video_diff <= -sync_threshold) {
+  //         gotFrame();
+  //         return getFrame(external_clock);
+  //       } else if (video_diff >= sync_threshold) {
+  //         return nullptr;
+  //       }
+  //     } else {
+  //       // std::cout << video_diff << std::endl;
+  //       // TODO: utilize dts to handle edge cases
+  //       if (video_diff > 0) {
+  //         ++seek_diff_count;
+  //         if (seek_diff_count > PICTQ_SIZE + 2)
+  //           return nullptr;
+  //       }
 
-//     // sync video frame using pts
-//     pts = reader->synchronize_video(video_frame, pts);
+  //       gotFrame();
+  //       return getFrame(external_clock);
+  //     }
+  //   }
 
-//     if (!reader->queue_picture(video_frame, pts)) {
-//       // global quit flag has been set
-//       should_quit = true;
-//       break;
-//     }
-//   }
-//   // wipe the frame
-//   av_frame_unref(video_frame);
-
-//   // wipe the packet
-//   av_packet_unref(video_pkt);
-// }
-
-// for (int index = 0; index < PICTQ_SIZE; ++index) {
-//   if (reader->pictq.queue[index]) {
-//     av_frame_free(&(reader->pictq.queue[index]));
-//     av_free(reader->pictq.queue[index]);
-//   }
-// }
-
-// av_frame_free(&video_frame);
-// av_free(video_frame);
-
-// av_packet_unref(video_pkt);
-// av_packet_free(&video_pkt);
-
-// return;
-// }
-
-// int64_t VideoDecoder::guess_correct_pts(AVCodecContext *ctx,
-//                                         int64_t &reordered_pts, int64_t
-//                                         &dts) {
-//   int64_t pts = AV_NOPTS_VALUE;
-
-//   if (dts != AV_NOPTS_VALUE) {
-//     ctx->pts_correction_num_faulty_dts += dts <=
-//     ctx->pts_correction_last_dts; ctx->pts_correction_last_dts = dts;
-//   } else if (reordered_pts != AV_NOPTS_VALUE) {
-//     ctx->pts_correction_last_dts = reordered_pts;
-//   }
-
-//   if (reordered_pts != AV_NOPTS_VALUE) {
-//     ctx->pts_correction_num_faulty_pts +=
-//         reordered_pts <= ctx->pts_correction_last_pts;
-//     ctx->pts_correction_last_pts = reordered_pts;
-//   } else if (dts != AV_NOPTS_VALUE) {
-//     ctx->pts_correction_last_pts = dts;
-//   }
-
-//   if ((ctx->pts_correction_num_faulty_pts <=
-//            ctx->pts_correction_num_faulty_dts ||
-//        dts == AV_NOPTS_VALUE) &&
-//       reordered_pts != AV_NOPTS_VALUE) {
-//     pts = reordered_pts;
-//   } else {
-//     pts = dts;
-//   }
-
-//   return pts;
-// }
-
-// double VideoDecoder::synchronize_video(AVFrame *src_frame, double &pts) {
-//   double frame_delay;
-
-//   if (pts != 0) {
-//     // if we have pts, set the video_clock to it
-//     video_clock = pts;
-//   } else {
-//     // if we don't have a pts, set it to the clock
-//     pts = video_clock;
-//   }
-
-//   // RESOLVE BEFORE COMMIT
-//   // base time between frames
-//   frame_delay = av_q2d(video_st->time_base);
-//   // calculate how much frame must be delayed
-//   frame_delay += 0.5 * frame_delay * src_frame->repeat_pict;
-
-//   // update video clock
-//   video_clock += frame_delay;
-
-//   return pts;
-// }
-
-// bool VideoDecoder::queue_picture(AVFrame *qFrame, double &pts) {
-//   // acquire picture queue mutex
-//   std::unique_lock<std::mutex> lk(pictq.mutex);
-
-//   // wait until picture queue has space
-//   while (pictq.size >= PICTQ_SIZE && !global_quit) {
-//     pictq.cond.wait(lk);
-//   }
-
-//   lk.unlock();
-
-//   if (global_quit != 0) {
-//     return false;
-//   }
-
-//   // check if frame has been correctly allocated
-//   if (pictq.queue[pictq.write_index]) {
-//     // set updated pts value
-//     pictq.pts[pictq.write_index] = pts;
-
-//     // set frame info using last decoded frame
-//     pictq.queue[pictq.write_index]->pict_type = qFrame->pict_type;
-//     pictq.queue[pictq.write_index]->pts = qFrame->pts;
-//     pictq.queue[pictq.write_index]->pkt_dts = qFrame->pkt_dts;
-//     pictq.queue[pictq.write_index]->key_frame = qFrame->key_frame;
-//     pictq.queue[pictq.write_index]->coded_picture_number =
-//         qFrame->coded_picture_number;
-//     pictq.queue[pictq.write_index]->display_picture_number =
-//         qFrame->display_picture_number;
-//     pictq.queue[pictq.write_index]->width = qFrame->width;
-//     pictq.queue[pictq.write_index]->height = qFrame->height;
-
-//     // scale image in qFrame->data and put results in pictq frame's data
-//     sws_scale(sws_ctx, (uint8_t const *const *)qFrame->data,
-//     qFrame->linesize,
-//               0, video_ctx->height, pictq.queue[pictq.write_index]->data,
-//               pictq.queue[pictq.write_index]->linesize);
-
-//     // update write index
-//     ++pictq.write_index;
-//     if (pictq.write_index == PICTQ_SIZE) {
-//       pictq.write_index = 0;
-//     }
-
-//     lk.lock();
-
-//     // increase picture queue size
-//     ++pictq.size;
-//   } else {
-//     std::cerr << "Picture queue hasn't been allocated" << std::endl;
-//     global_quit = -1;
-//     return false;
-//   }
-
-//   return true;
-// }
-
-// uint8_t *VideoDecoder::getFrame(double &external_clock) {
-//   // check picture queue contains decoded frames
-//   if (pictq.size == 0) {
-//     // skip updating texture this frame
-//     return nullptr;
-//   } else {
-//     AVFrame *frame = pictq.queue[pictq.read_index];
-//     double &pts = pictq.pts[pictq.read_index];
-//     // std::cout << " pts(read): " << pts << std::endl;
-
-//     // get last frame pts
-//     double pts_delay = pts - frame_last_pts;
-
-//     // check if obtained delay is invalid
-//     if (pts_delay <= 0 || pts_delay >= 1.0) {
-//       // use previous calculated delay
-//       pts_delay = frame_last_delay;
-//     }
-
-//     // save delay information
-//     frame_last_pts = pts;
-//     frame_last_delay = pts_delay;
-
-//     if (master_sync != MasterSync::AV_SYNC_VIDEO) {
-//       if (master_sync == MasterSync::AV_SYNC_AUDIO) {
-//         master_clock = get_audio_clock();
-//       } else {
-//         master_clock = external_clock;
-//       }
-
-//       double video_diff = pts - master_clock;
-
-//       double sync_threshold =
-//           (pts_delay > AV_SYNC_THRESHOLD) ? pts_delay : AV_SYNC_THRESHOLD;
-
-//       // check if audio video delay is below sync threshold
-//       if (fabs(video_diff) < AV_NOSYNC_THRESHOLD) {
-//         if (video_diff <= -sync_threshold) {
-//           gotFrame();
-//           return getFrame(external_clock);
-//         } else if (video_diff >= sync_threshold) {
-//           return nullptr;
-//         }
-//       } else {
-//         // std::cout << video_diff << std::endl;
-//         // TODO: utilize dts to handle edge cases
-//         if (video_diff > 0) {
-//           ++seek_diff_count;
-//           if (seek_diff_count > PICTQ_SIZE + 2)
-//             return nullptr;
-//         }
-
-//         gotFrame();
-//         return getFrame(external_clock);
-//       }
-//     }
-
-//     return (uint8_t *)*frame->extended_data; // same as data[0]
-//     // return (uint8_t *)*pictq.queue[pictq.read_index]
-//     //     ->extended_data; // same as data[0]
-//   }
-// }
+  //   return (uint8_t *)*frame->extended_data; // same as data[0]
+  //   // return (uint8_t *)*pictq.queue[pictq.read_index]
+  //   //     ->extended_data; // same as data[0]
+  // }
+}
 
 // void VideoDecoder::gotFrame() {
 //   // update read index
@@ -587,120 +448,16 @@ void VideoDecoder::decodeThreadFunction(VideoState *vs) {
 //   pictq.cond.notify_one();
 // }
 
-// void VideoDecoder::audioThreadFunction(VideoDecoder *reader) {
-//   while (reader->global_quit == 0) {
-//     // check if audio buffer needs to be written into
-//     if (reader->audio_buffer[0].writeSpace() >
-//     AUDIO_BUFFER_REFRESH_THRESHOLD) {
-//       // get more audio data
-//       if (reader->audio_decode_frame() < 0) {
-//         std::cerr << "audio_decode_frame() failed" << std::endl;
-//         reader->global_quit = -1;
-//         return;
-//       }
-//     }
-//   }
-// }
+uint8_t *VideoDecoder::getAudioFrame() {
+  // TODO: seeking
 
-// int VideoDecoder::audio_decode_frame() {
-//   int data_size = 0;
+  while (!audio_buffer.get(audio_output)) {
+    if (video_state.global_quit != 0)
+      return nullptr;
+  }
 
-//   // check global quit flag
-//   if (global_quit != 0) {
-//     return 0;
-//   }
-
-// // allocate audio packet
-// audio_pkt = av_packet_alloc();
-// if (!audio_pkt) {
-//   std::cerr << "Could not allocate audio packet" << std::endl;
-//   return false;
-// }
-
-// // allocate a new frame, used to decode audio packets
-// audio_frame = av_frame_alloc();
-// if (!audio_frame) {
-//   std::cerr << "Could not allocate audio frame" << std::endl;
-//   return false;
-// }
-
-//   // run while data is still left in audio packet
-//   while (audio_pkt->data) {
-//     // retrieve audio frame
-//     int ret = avcodec_receive_frame(audio_ctx, audio_frame);
-
-//     // need more data
-//     if (ret == AVERROR(EAGAIN)) {
-//       break;
-//     } else if (ret == AVERROR_EOF) {
-//       // end of file. let the video play handle quitting
-//       // TODO: check where global quit flag is being set
-//       return 0;
-//     } else if (ret < 0) {
-//       std::cerr << "Error receiving audio frame" << std::endl;
-//       return -1;
-//     }
-
-//     // does this ever happen?
-//     // if (audio_sample_size * audio_frame->nb_samples >
-//     //     AUDIO_BUFFER_REFRESH_THRESHOLD) {
-//     //   std::cerr << "Audio buffer frame size too small" << std::endl;
-//     // }
-
-//     for (int i = 0; i < audio_frame->nb_samples; ++i) {
-//       for (int ch = 0; ch < audio_ctx->channels; ++ch) {
-//         data_size += audio_buffer[ch].write(
-//             (const char *)audio_frame->data[ch] + audio_sample_size * i,
-//             audio_sample_size);
-//       }
-//     }
-
-//     // update audio clock as we read through the packet
-//     audio_clock += (double)data_size / audio_data_rate;
-
-//     // audio buffer sufficiently filled. come back later
-//     // TODO: see if this can be more optimized
-//     if (audio_buffer[0].writeSpace() < AUDIO_BUFFER_REFRESH_THRESHOLD) {
-//       return data_size;
-//     }
-//   }
-
-//   // ideally this shouldn't happen
-//   if (audio_pkt->data) {
-//     // wipe the packet
-//     av_packet_unref(audio_pkt);
-//   }
-
-//   // get new audio packet from queue
-//   if (packet_queue_get(&audioq, audio_pkt, 1) < 0) {
-//     // global quit flag has been set
-//     return 0;
-//   }
-
-//   // flush buffer if flush packet
-//   if (audio_pkt->data == flush_pkt->data) {
-//     avcodec_flush_buffers(audio_ctx);
-//     return data_size;
-//   }
-
-//   // send packet to audio codec
-//   if (avcodec_send_packet(audio_ctx, audio_pkt) < 0) {
-//     std::cerr << "Error sending audio packet for decoding" << std::endl;
-//     return -1;
-//   }
-
-//   // update audio clock from new packet
-//   if (audio_pkt->pts != AV_NOPTS_VALUE) {
-//     audio_clock = av_q2d(audio_st->time_base) * audio_pkt->pts;
-//   }
-
-//   return data_size;
-// }
-
-// double VideoDecoder::get_audio_clock() {
-//   return audio_clock - (double)audio_buffer[0].readSpace() *
-//                            audio_ctx->channels / audio_data_rate;
-// }
+  return audio_output.data.data();
+}
 
 // void VideoDecoder::packet_queue_init(PacketQueue *pktq) { pktq->dataSize =
 // 0;
@@ -772,14 +529,21 @@ void VideoDecoder::decodeThreadFunction(VideoState *vs) {
 //   }
 // }
 
-int VideoDecoder::audioSampleRate() {
+unsigned int VideoDecoder::audioSampleRate() {
   if (video_state.audio_ctx)
     return video_state.audio_ctx->sample_rate;
   return 0;
 }
-int VideoDecoder::audioNumChannels() {
+
+unsigned int VideoDecoder::audioNumChannels() {
   if (video_state.audio_ctx)
     return video_state.audio_ctx->channels;
+  return 0;
+}
+
+unsigned int VideoDecoder::audioSamplesPerChannel() {
+  if (video_state.audio_ctx)
+    return video_state.audio_ctx->frame_size;
   return 0;
 }
 
@@ -808,9 +572,11 @@ double VideoDecoder::fps() {
 
 void VideoDecoder::cleanup() {
   // Close the audio codec
-  avcodec_close(video_state.audio_ctx);
+  avcodec_free_context(&video_state.audio_ctx);
   // Close the video codec
-  avcodec_close(video_state.video_ctx);
+  avcodec_free_context(&video_state.video_ctx);
+  // free the sws context
+  sws_freeContext(video_state.sws_ctx);
   // Close the video file
   avformat_close_input(&video_state.format_ctx);
 }
@@ -821,7 +587,6 @@ void VideoDecoder::stop() {
   if (decode_thread) {
     decode_thread->join();
   }
-
   std::thread *dth = decode_thread;
   decode_thread = nullptr;
   delete dth;
