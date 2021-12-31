@@ -35,7 +35,7 @@ public:
 
     // std::cout << "Writing at buffer: " << writePos << std::endl;
 
-    // possible unnecessary memory copy
+    // TODO: check possible unnecessary memory copy
     frames[writePos] = std::move(mFrame);
     valid[writePos] = true;
     writePos = ++writePos % frames.size();
@@ -45,21 +45,27 @@ public:
 
   bool get(MediaFrame &mFrame) {
     if (!valid[readPos]) {
-      // std::cerr << "Buffer pos empty: " << readPos << std::endl;
+      // std::cerr << " Buffer pos empty: " << readPos << std::endl;
+
+      cond.notify_one();
+
       return false;
     }
 
-    // std::cout << "Reading at buffer: " << readPos << std::endl;
+    // std::cout << " Reading at buffer: " << readPos << std::endl;
 
-    // possible unnecessary memory copy
+    // TODO: check possible unnecessary memory copy
     mFrame = std::move(frames[readPos]);
     valid[readPos] = false;
     readPos = ++readPos % frames.size();
+
+    cond.notify_one();
 
     return true;
   }
 
   void flush() {
+    // std::cout << "*** flushing : " << frames.size() << std::endl;
     for (int i = 0; i < frames.size(); ++i) {
       valid[i] = false;
       frames[i].clear();
@@ -67,11 +73,16 @@ public:
 
     readPos = 0;
     writePos = 0;
+
+    cond.notify_one();
   }
 
   int getReadPos() { return readPos.load(); }
 
   int getWritePos() { return writePos.load(); }
+
+  std::mutex mutex;
+  std::condition_variable cond;
 
 private:
   std::vector<MediaFrame> frames;
@@ -79,9 +90,6 @@ private:
 
   std::atomic<int> readPos;
   std::atomic<int> writePos;
-
-  // std::mutex mutex;
-  // std::condition_variable cond;
 };
 
 #endif

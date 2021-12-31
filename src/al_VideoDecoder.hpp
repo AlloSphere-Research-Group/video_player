@@ -19,8 +19,8 @@ extern "C" {
 
 using namespace al;
 
-static const int AUDIO_BUFFER_SIZE = 8;
-static const int VIDEO_BUFFER_SIZE = 8;
+static const int AUDIO_BUFFER_SIZE = 1;
+static const int VIDEO_BUFFER_SIZE = 1;
 static const double AV_SYNC_THRESHOLD = 0.01;
 static const double AV_NOSYNC_THRESHOLD = 1.0;
 
@@ -82,14 +82,11 @@ public:
   // start the threads
   void start();
 
-  // get the next frame data
-  uint8_t *getFrame(double external_clock = -1);
+  // get the next video/audio frame
+  uint8_t *getVideoFrame(double external_clock = -1);
+  uint8_t *getAudioFrame(double external_clock = -1);
 
-  // notify frame has been rendered
-  void gotFrame();
-
-  uint8_t *getAudioFrame();
-
+  // seek position in video file
   void stream_seek(int64_t pos, int rel);
 
   // free memories

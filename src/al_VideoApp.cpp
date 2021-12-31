@@ -99,11 +99,11 @@ void VideoApp::onCreate() {
   audioDomain()->stop();
   // TODO: temporarily disabled audio
   // if (!isPrimary()) {
-  // videoDecoder.enableAudio(false);
+  videoDecoder.enableAudio(false);
   // }
 
   // if (isPrimary()) {
-  //   videoDecoder.setMasterSync(MasterSync::AV_SYNC_AUDIO);
+  // videoDecoder.setMasterSync(MasterSync::AV_SYNC_AUDIO);
   // }
 
   // TODO: check audio startup
@@ -146,7 +146,7 @@ void VideoApp::onCreate() {
   // TODO: review high fps option with manual timing control
   // set fps
   if (isPrimary()) {
-    fps(videoDecoder.fps());
+    // fps(videoDecoder.fps());
     mtcReader.TCframes.setCurrent("30");
     state().global_clock = 0;
   }
@@ -185,11 +185,10 @@ void VideoApp::onAnimate(al_sec dt) {
     // }
   }
 
-  uint8_t *frame = videoDecoder.getFrame(state().global_clock);
+  uint8_t *frame = videoDecoder.getVideoFrame(state().global_clock);
 
   if (frame) {
     tex.submit(frame);
-    // videoDecoder.gotFrame();
   }
 
   if (hasCapability(Capability::CAP_2DGUI)) {
@@ -285,6 +284,8 @@ void VideoApp::onDraw(Graphics &g) {
 void VideoApp::onSound(AudioIOData &io) {
   if (isPrimary()) {
     if (mPlaying && videoDecoder.hasAudio()) {
+      uint8_t *audioBuffer = videoDecoder.getAudioFrame(state().global_clock);
+
       // ambisonics
       if (decodeAmbisonics) {
         // float audioBuffer[4][8192];
@@ -319,12 +320,11 @@ void VideoApp::onSound(AudioIOData &io) {
         // **)audioBufferScan,
         //                   channelBytesRead);
       } else { // no ambisonics
-        uint8_t *audioBuffer = videoDecoder.getAudioFrame();
-
-        memcpy(io.outBuffer(0), audioBuffer,
-               io.framesPerBuffer() * sizeof(float) *
-                   videoDecoder.audioNumChannels());
-
+        if (audioBuffer) {
+          memcpy(io.outBuffer(0), audioBuffer,
+                 io.framesPerBuffer() * sizeof(float) *
+                     videoDecoder.audioNumChannels());
+        }
         // for (int i = 0; i < videoDecoder.audioNumChannels(); ++i) {
         //   memcpy(io.outBuffer(i),
         //          audioBuffer + i * io.framesPerBuffer() * sizeof(float),
@@ -346,27 +346,27 @@ bool VideoApp::onKeyDown(const Keyboard &k) {
     mEquirectangular = !mEquirectangular;
   } else if (k.key() == Keyboard::TAB) {
     mShowDiagnostic = !mShowDiagnostic;
-    // } else if (k.key() == '[') {
-    //   if (isPrimary()) {
-    //     // TODO: implement get_master_clock
-    //     double pos = state().global_clock;
-    //     double diff = -10.0;
-    //     pos += diff;
-    //     if (pos < 0) {
-    //       pos = 0;
-    //     }
-    //     state().global_clock = pos;
-    //     videoDecoder.stream_seek((int64_t)(pos * AV_TIME_BASE), -10.0);
-    //   }
-    // } else if (k.key() == ']') {
-    //   if (isPrimary()) {
-    //     // TODO: implement get_master_clock
-    //     // TODO: get end pos
-    //     double pos = state().global_clock;
-    //     pos += 10.0;
-    //     state().global_clock += 10.0;
-    //     videoDecoder.stream_seek((int64_t)(pos * AV_TIME_BASE), 10.0);
-    //   }
+  } else if (k.key() == '[') {
+    if (isPrimary()) {
+      // TODO: implement get_master_clock
+      double pos = state().global_clock;
+      double diff = -10.0;
+      pos += diff;
+      if (pos < 0) {
+        pos = 0;
+      }
+      state().global_clock = pos;
+      videoDecoder.stream_seek((int64_t)(pos * AV_TIME_BASE), -10.0);
+    }
+  } else if (k.key() == ']') {
+    if (isPrimary()) {
+      // TODO: implement get_master_clock
+      // TODO: get end pos
+      double pos = state().global_clock;
+      pos += 10.0;
+      state().global_clock += 10.0;
+      videoDecoder.stream_seek((int64_t)(pos * AV_TIME_BASE), 10.0);
+    }
   }
   return true;
 }
