@@ -99,7 +99,7 @@ void VideoApp::onCreate() {
   audioDomain()->stop();
   // TODO: temporarily disabled audio
   // if (!isPrimary()) {
-  // videoDecoder.enableAudio(false);
+  videoDecoder.enableAudio(false);
   // }
 
   // if (isPrimary()) {
@@ -417,14 +417,14 @@ int VideoApp::addSphereWithEquirectTex(Mesh &m, double radius, int bands) {
 }
 
 void VideoApp::configureAudio() {
-  auto sphereSpkrs = AlloSphereSpeakerLayoutExtraThin();
-  auto stereoSpkrs = StereoSpeakerLayout();
+  // auto sphereSpkrs = AlloSphereSpeakerLayoutExtraThin();
+  // auto stereoSpkrs = StereoSpeakerLayout();
 
-  if (al::sphere::isSimulatorMachine()) {
-    ambisonics.setSpeakers(sphereSpkrs);
-  } else {
-    ambisonics.setSpeakers(stereoSpkrs);
-  }
+  // if (al::sphere::isSimulatorMachine()) {
+  //   ambisonics.setSpeakers(sphereSpkrs);
+  // } else {
+  //   ambisonics.setSpeakers(stereoSpkrs);
+  // }
 
   if (videoDecoder.hasAudio()) {
     audioDomain()->audioIO().framesPerSecond(videoDecoder.audioSampleRate());
