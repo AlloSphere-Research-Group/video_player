@@ -29,10 +29,10 @@ endif()
 target_link_libraries(${APP_NAME} PRIVATE al)
 
 # set(FFMPEG_ROOT "C:\\Users\\Andres\\source\\repos\\ffmpeg-n4.4-78-g031c0cb0b4-win64-gpl-shared-4.4" CACHE STRING "Path to FFMPEG lib and include directories")
-set(FFMPEG_ROOT "/usr/local/" CACHE STRING "Path to FFMPEG lib and include directories")
-# set(FFMPEG_ROOT "/Users/cannedstar/code/ffmpeg" CACHE STRING "Path to FFMPEG lib and include directories")
-
+# set(FFMPEG_ROOT "/usr/local/" CACHE STRING "Path to FFMPEG lib and include directories")
+set(FFMPEG_ROOT "/alloshare/code/kenny/ffmpeg_install/" CACHE STRING "Path to FFMPEG lib and include directories")
 message("Using FFMPEG at ${FFMPEG_ROOT}")
+
 # FFMPEG
 find_path(AVCODEC_INCLUDE_DIR libavcodec/avcodec.h PATHS ${FFMPEG_ROOT} PATH_SUFFIXES "include")
 find_library(AVCODEC_LIBRARY avcodec PATHS ${FFMPEG_ROOT} PATH_SUFFIXES "lib")
