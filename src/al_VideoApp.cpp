@@ -99,7 +99,7 @@ void VideoApp::onCreate() {
   audioDomain()->stop();
   // TODO: temporarily disabled audio
   // if (!isPrimary()) {
-  videoDecoder.enableAudio(false);
+  // videoDecoder.enableAudio(false);
   // }
 
   // if (isPrimary()) {
@@ -146,7 +146,7 @@ void VideoApp::onCreate() {
   // TODO: review high fps option with manual timing control
   // set fps
   if (isPrimary()) {
-    // fps(videoDecoder.fps());
+    fps(videoDecoder.fps());
     mtcReader.TCframes.setCurrent("30");
     state().global_clock = 0;
   }
@@ -286,49 +286,40 @@ void VideoApp::onSound(AudioIOData &io) {
     if (mPlaying && videoDecoder.hasAudio()) {
       uint8_t *audioBuffer = videoDecoder.getAudioFrame(state().global_clock);
 
+      if (!audioBuffer)
+        return;
+
+      int channelSize = io.framesPerBuffer() * sizeof(float);
+      int frameSize = channelSize * videoDecoder.audioNumChannels();
+
       // ambisonics
       if (decodeAmbisonics) {
-        // float audioBuffer[4][8192];
-        // float *audioBufferScan[4];
-        // assert(io.framesPerBuffer() <= 8192);
-        // // Read video file audio buffers
-        // size_t channelBytesRead = 0;
+        float *audioBufferMap[4];
 
-        // for (int inChan = 0; inChan < 4; inChan++) {
-        //   SingleRWRingBuffer *audioRingBuffer =
-        //       videoDecoder.getAudioBuffer(inChan);
-        //   size_t bytesRead =
-        //       audioRingBuffer->read((char *)audioBuffer[inChan],
-        //                             io.framesPerBuffer() * sizeof(float));
+        // map from FuMa to ACN
+        // TODO: should be determined from file metadata
+        int ambiMap[] = {0, 2, 3, 1};
 
-        //   // map from FuMa to ACN (should be determined from file metadata
-        //   int ambiMap[] = {0, 2, 3, 1};
-        //   audioBufferScan[inChan] = audioBuffer[ambiMap[inChan]];
-        //   if (inChan > 0 && channelBytesRead != bytesRead) {
-        //     std::cerr << "ERROR audio buffer size mismatch" << std::endl;
-        //     channelBytesRead = std::min(channelBytesRead, bytesRead);
-        //   } else {
-        //     channelBytesRead = bytesRead;
-        //   }
-        // }
-        // float *outbufs[64];
-        // assert(io.channelsOut() <= 64);
-        // for (int i = 0; i < io.channelsOut(); ++i) {
-        //   outbufs[i] = io.outBuffer(i);
-        // }
-        // ambisonics.decode((float **)outbufs, (const float
-        // **)audioBufferScan,
-        //                   channelBytesRead);
+        for (int ch = 0; ch < 4; ++ch) {
+          audioBufferMap[ch] =
+              (float *)(audioBuffer + ambiMap[ch] * channelSize);
+        }
+
+        float *outbufs[64];
+        assert(io.channelsOut() <= 64);
+        for (int i = 0; i < io.channelsOut(); ++i) {
+          outbufs[i] = io.outBuffer(i);
+        }
+
+        ambisonics.decode((float **)outbufs, (const float **)audioBufferMap,
+                          channelSize);
       } else { // no ambisonics
         if (audioBuffer) {
-          memcpy(io.outBuffer(0), audioBuffer,
-                 io.framesPerBuffer() * sizeof(float) *
-                     videoDecoder.audioNumChannels());
+          memcpy(io.outBuffer(0), audioBuffer, frameSize);
         }
         // for (int i = 0; i < videoDecoder.audioNumChannels(); ++i) {
-        //   memcpy(io.outBuffer(i),
-        //          audioBuffer + i * io.framesPerBuffer() * sizeof(float),
-        //          io.framesPerBuffer() * sizeof(float));
+        //   memcpy(io.outBuffer(i), audioBuffer + i * channelSize,
+        //   channelSize);
         // }
       }
     }
@@ -426,11 +417,13 @@ int VideoApp::addSphereWithEquirectTex(Mesh &m, double radius, int bands) {
 }
 
 void VideoApp::configureAudio() {
-  auto sl = AlloSphereSpeakerLayoutExtraThin();
+  auto sphereSpkrs = AlloSphereSpeakerLayoutExtraThin();
+  auto stereoSpkrs = StereoSpeakerLayout();
+
   if (al::sphere::isSimulatorMachine()) {
-    ambisonics.setSpeakers(sl);
+    ambisonics.setSpeakers(sphereSpkrs);
   } else {
-    ambisonics.setSpeakers(sl);
+    ambisonics.setSpeakers(stereoSpkrs);
   }
 
   if (videoDecoder.hasAudio()) {
