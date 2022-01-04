@@ -28,8 +28,10 @@ int main(int argc, char *argv[]) {
     // videoUrl =
     //     "/Users/cannedstar/code/video_player/data/Iron_Man-Trailer_HD.mp4";
     // videoUrl = "/Users/cannedstar/code/video_player/data/test.mov";
-    if (sphere::isSphereMachine()) {
-      app.dataRoot += "media/";
+    if (sphere::isSimulatorMachine()) {
+      app.dataRoot += "/Volumes/Data/media/";
+    } else if (sphere::isRendererMachine()) {
+      app.dataRoot += "/data/media/";
     } else {
       // CHange this to your local data root path
       app.dataRoot = "c:/Users/Andres/Downloads/";
