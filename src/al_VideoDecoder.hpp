@@ -148,7 +148,7 @@ private:
   MediaBuffer audio_buffer;
 
   // ** Threads **
-  std::thread *decode_thread;
+  std::thread *decode_thread{nullptr};
 };
 
 #endif // AL_VIDEODECODER_HPP

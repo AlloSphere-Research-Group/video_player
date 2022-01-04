@@ -233,12 +233,12 @@ void VideoDecoder::decodeThreadFunction(VideoState *vs) {
 
       if (video_stream_index >= 0) {
         video_seek_target = av_rescale_q(
-            video_seek_target, AV_TIME_BASE_Q,
+            video_seek_target, av_get_time_base_q(),
             vs->format_ctx->streams[video_stream_index]->time_base);
       }
       if (audio_stream_index >= 0) {
         audio_seek_target = av_rescale_q(
-            audio_seek_target, AV_TIME_BASE_Q,
+            audio_seek_target, av_get_time_base_q(),
             vs->format_ctx->streams[audio_stream_index]->time_base);
       }
 

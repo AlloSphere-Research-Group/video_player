@@ -31,8 +31,10 @@ public:
   void configureAudio();
 
   void setVideoFile(std::string videoFileUrl) {
-    mVideoFileToLoad = videoFileUrl;
+    mVideoFileToLoad = dataRoot + videoFileUrl;
   };
+
+  double wallTime{0};
 
 private:
   Texture tex;

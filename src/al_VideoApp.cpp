@@ -165,30 +165,60 @@ void VideoApp::onCreate() {
 void VideoApp::onAnimate(al_sec dt) {
   nav().pos().set(0);
 
-  if (isPrimary()) {
-    // state().quat = nav().quat();
+  double incomingTime = 0.0;
+  bool timeChanged = false;
+  if (syncToMTC.get() == 1.0) {
+    // Only primary should be here, the syncToMTC can't be set on renderers
+    // TODO: review drift + handle offset (won't start at 0)
+    uint8_t hour, minute, second, frame;
+    mtcReader.getMTC(hour, minute, second, frame);
 
-    if (mPlaying) {
-      state().global_clock += dt;
+    incomingTime = ((int32_t)hour * 360) + ((int32_t)minute * 60) + second +
+                   ((frame - 1) / 30.0);
+
+    if (incomingTime < state().global_clock) {
+      videoDecoder.stream_seek((int64_t)(incomingTime * AV_TIME_BASE), -10);
+      timeChanged = true;
+    } else if (incomingTime - state().global_clock > 3.0 / 30.0) {
+
+      videoDecoder.stream_seek((int64_t)(incomingTime * AV_TIME_BASE), 10);
+      timeChanged = true;
+    } else if (incomingTime != state().global_clock) {
+      timeChanged = true;
     }
+    state().global_clock = incomingTime;
+  } else {
+    if (isPrimary()) {
+      if (mPlaying) {
+        state().global_clock += dt;
+        timeChanged = true;
+      }
+    } else {
+      static double previousTime = 0.0;
 
-    // if (syncToMTC.get() == 1.0) {
-    //   // TODO: review drift + handle offset (won't start at 0)
-    //   uint8_t hour, minute, second, frame;
-    //   mtcReader.getMTC(hour, minute, second, frame);
-    //   int fps = mtcReader.fps();
-    //   int frameNum = mtcReader.frameNum();
-    //   if (lastFrameNum != frameNum) {
-    //     state().global_clock = (double)frameNum / (double)fps;
-    //     lastFrameNum = frameNum;
-    //   }
-    // }
+      if (state().global_clock < previousTime) {
+        videoDecoder.stream_seek((int64_t)(state().global_clock * AV_TIME_BASE),
+                                 -10);
+        timeChanged = true;
+      } else if (state().global_clock - previousTime > 3.0 / 30.0) {
+
+        videoDecoder.stream_seek((int64_t)(state().global_clock * AV_TIME_BASE),
+                                 10);
+        timeChanged = true;
+      } else if (state().global_clock != previousTime) {
+        timeChanged = true;
+      }
+      previousTime = state().global_clock;
+    }
+    incomingTime = state().global_clock;
   }
 
-  uint8_t *frame = videoDecoder.getVideoFrame(state().global_clock);
+  if (timeChanged) {
+    uint8_t *frame = videoDecoder.getVideoFrame(incomingTime);
 
-  if (frame) {
-    tex.submit(frame);
+    if (frame) {
+      tex.submit(frame);
+    }
   }
 
   if (hasCapability(Capability::CAP_2DGUI)) {
@@ -200,7 +230,6 @@ void VideoApp::onAnimate(al_sec dt) {
     ParameterGUI::drawMIDIIn(&mtcReader.midiIn);
     ParameterGUI::draw(&mtcReader.TCframes);
     ParameterGUI::draw(&mtcReader.frameOffset);
-    ParameterGUI::drawMIDIIn(&mtcReader.midiIn);
 
     uint8_t hour, minute, second, frame;
     mtcReader.getMTC(hour, minute, second, frame);
