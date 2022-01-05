@@ -1,9 +1,9 @@
 #include "al_VideoApp.hpp"
 
+#include "al/graphics/al_Font.hpp"
 #include "al/sphere/al_AlloSphereSpeakerLayout.hpp"
 #include "al/sphere/al_SphereUtils.hpp"
-
-#include "al/graphics/al_Font.hpp"
+#include "al_ext/statedistribution/al_CuttleboneStateSimulationDomain.hpp"
 
 using namespace al;
 
@@ -75,15 +75,12 @@ void main() {
 VideoApp::VideoApp() {
   // remove simulation domain to replace it with simulation domain that runs
   // post onDraw()
-  mOpenGLGraphicsDomain->removeSubDomain(simulationDomain());
-  mSimulationDomain =
-      mOpenGLGraphicsDomain->newSubDomain<StateDistributionDomain<SharedState>>(
-          false);
 }
 
 void VideoApp::onInit() {
   mExposure = 1.0f;
   audioIO().gain(1.0); // 0.4
+  CuttleboneStateSimulationDomain<SharedState>::enableCuttlebone(this, false);
 }
 
 void VideoApp::onCreate() {
