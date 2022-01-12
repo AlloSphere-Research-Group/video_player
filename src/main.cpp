@@ -21,7 +21,8 @@ int main(int argc, char *argv[]) {
     // videoUrl = "/data/media/pano_videos/unreal-village-omnistereo.mp4";
     // videoUrl =
     //  "/data/media/pano_videos/LastWhispers_040719_ambix_360.mp4";
-    videoUrl = "LW_KT_Edit_1205_360-convert.mp4";
+    //      videoUrl = "LW_KT_Edit_1205_360-convert.mp4";
+    videoUrl = "Lw Kt Edit 0103 Good 75Mbps 8K 360-4k-30fps-noaudio.m4v";
     //    videoUrl = "LastWhispers_040719_ambix_360.mp4";
     //    videoUrl = "/Users/cannedstar/code/video_player/data/"
     //               "LastWhispers_040719_ambix_360.mp4";
