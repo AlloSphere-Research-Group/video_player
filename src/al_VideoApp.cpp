@@ -172,16 +172,17 @@ void VideoApp::onAnimate(al_sec dt) {
 
     incomingTime = ((int32_t)hour * 360) + ((int32_t)minute * 60) + second +
                    ((frame - 1) / 30.0);
+    if (decodeInSimulator.get() == 1.0) {
+      if (incomingTime < state().global_clock) {
+        videoDecoder.stream_seek((int64_t)(incomingTime * AV_TIME_BASE), -10);
+        timeChanged = true;
+      } else if (incomingTime - state().global_clock > 3.0 / 30.0) {
 
-    if (incomingTime < state().global_clock) {
-      videoDecoder.stream_seek((int64_t)(incomingTime * AV_TIME_BASE), -10);
-      timeChanged = true;
-    } else if (incomingTime - state().global_clock > 3.0 / 30.0) {
-
-      videoDecoder.stream_seek((int64_t)(incomingTime * AV_TIME_BASE), 10);
-      timeChanged = true;
-    } else if (incomingTime != state().global_clock) {
-      timeChanged = true;
+        videoDecoder.stream_seek((int64_t)(incomingTime * AV_TIME_BASE), 10);
+        timeChanged = true;
+      } else if (incomingTime != state().global_clock) {
+        timeChanged = true;
+      }
     }
     state().global_clock = incomingTime;
   } else {
@@ -211,10 +212,12 @@ void VideoApp::onAnimate(al_sec dt) {
   }
 
   if (timeChanged) {
-    uint8_t *frame = videoDecoder.getVideoFrame(incomingTime);
+    if (decodeInSimulator.get() == 1.0) {
+      uint8_t *frame = videoDecoder.getVideoFrame(incomingTime);
 
-    if (frame) {
-      tex.submit(frame);
+      if (frame) {
+        tex.submit(frame);
+      }
     }
   }
 
@@ -223,6 +226,7 @@ void VideoApp::onAnimate(al_sec dt) {
 
     ImGui::Begin("MIDI Time Code");
 
+    ParameterGUI::draw(&decodeInSimulator);
     ParameterGUI::draw(&syncToMTC);
     ParameterGUI::drawMIDIIn(&mtcReader.midiIn);
     ParameterGUI::draw(&mtcReader.TCframes);

@@ -57,6 +57,7 @@ private:
   bool mShowDiagnostic{false};
 
   ParameterBool syncToMTC{"syncToMTC"};
+  ParameterBool decodeInSimulator{"decodeInSimulator", "", 1.0};
 };
 
 } // namespace al
