@@ -4,7 +4,7 @@
 #include "MTCReader.hpp"
 #include "al/app/al_DistributedApp.hpp"
 #include "al/sound/al_Ambisonics.hpp"
-#include "al_VideoDecoder.hpp"
+#include "al_ext/video/al_VideoDecoder.hpp"
 
 typedef struct SharedState {
   double global_clock;

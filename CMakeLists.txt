@@ -10,8 +10,6 @@ add_executable(${APP_NAME}
                src/main.cpp
                src/al_VideoApp.hpp
                src/al_VideoApp.cpp
-               src/al_VideoDecoder.hpp
-               src/al_VideoDecoder.cpp
                src/MTCReader.hpp
                src/MTCReader.cpp)
 
