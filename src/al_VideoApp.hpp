@@ -3,7 +3,6 @@
 
 #include "MTCReader.hpp"
 #include "al/app/al_DistributedApp.hpp"
-#include "al/sound/al_Ambisonics.hpp"
 #include "al_ext/video/al_VideoDecoder.hpp"
 
 typedef struct SharedState {
@@ -31,33 +30,30 @@ public:
   void configureAudio();
 
   void setVideoFile(std::string videoFileUrl) {
-    mVideoFileToLoad = dataRoot + videoFileUrl;
+    videoFileToLoad = dataRoot + videoFileUrl;
   };
 
-  double wallTime{0};
+  double previousClock{0};
 
 private:
   Texture tex;
   VAOMesh quad, sphere;
-  bool mEquirectangular{false};
+  bool equirectangular{false};
 
   ShaderProgram pano_shader;
-  float mExposure;
-  bool mUniformChanged{false};
+  float exposure;
+  bool uniformChanged{false};
 
   VideoDecoder videoDecoder;
-  std::string mVideoFileToLoad;
-
-  AmbiDecode ambisonics{3, 1, 2, 2};
-  bool decodeAmbisonics{false};
+  std::string videoFileToLoad;
 
   MTCReader mtcReader;
 
-  bool mPlaying{true};
-  bool mShowDiagnostic{false};
+  bool playing{true};
+  bool showHUD{false};
 
   ParameterBool syncToMTC{"syncToMTC"};
-  ParameterBool decodeInSimulator{"decodeInSimulator", "", 1.0};
+  ParameterBool renderVideo{"renderVideo", "", 1.0};
 };
 
 } // namespace al

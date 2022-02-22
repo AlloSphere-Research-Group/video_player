@@ -19,9 +19,9 @@ int main(int argc, char *argv[]) {
     // videoUrl = "unreal-village-omnistereo.mp4";
     // videoUrl = "LastWhispers_040719_ambix_360.mp4";
     // videoUrl = "LW_KT_Edit_1205_360-convert.mp4";
-    videoUrl = "Lw Kt Edit 0103 Good 75Mbps 8K 360-4k-30fps-noaudio.m4v";
-    // videoUrl = "test.mov";
+    // videoUrl = "Lw Kt Edit 0103 Good 75Mbps 8K 360-4k-30fps-noaudio.m4v";
     // videoUrl = "Iron_Man-Trailer_HD.mp4";
+    videoUrl = "LW_2K_ERP_noaudio.mp4";
 
     if (sphere::isSimulatorMachine()) {
       app.dataRoot += "/Volumes/Data/media/";
@@ -29,7 +29,8 @@ int main(int argc, char *argv[]) {
       app.dataRoot += "/data/media/";
     } else {
       // CHange this to your local data root path
-      app.dataRoot = "c:/Users/Andres/Downloads/";
+      // app.dataRoot = "c:/Users/Andres/Downloads/";
+      app.dataRoot = "/Users/cannedstar/code/video_player/data/";
     }
   }
 
