@@ -34,6 +34,9 @@ int main(int argc, char *argv[]) {
     }
   }
 
+  // auto dev = AudioDevice::defaultOutput();
+  // app.audioDomain()->configure(dev, 48000, 512, 2, 0);
+
   app.setVideoFile(videoUrl);
   app.start();
   return 0;
