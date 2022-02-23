@@ -19,9 +19,10 @@ int main(int argc, char *argv[]) {
     // videoUrl = "unreal-village-omnistereo.mp4";
     // videoUrl = "LastWhispers_040719_ambix_360.mp4";
     // videoUrl = "LW_KT_Edit_1205_360-convert.mp4";
-    // videoUrl = "Lw Kt Edit 0103 Good 75Mbps 8K 360-4k-30fps-noaudio.m4v";
+    videoUrl = "Lw Kt Edit 0103 Good 75Mbps 8K 360-4k-30fps-noaudio.m4v";
     // videoUrl = "Iron_Man-Trailer_HD.mp4";
-    videoUrl = "LW_2K_ERP_noaudio.mp4";
+    // videoUrl = "LW_2K_ERP_noaudio.mp4";
+    // videoUrl = "LW_KT_Edit_0103_highest_100mbps_4k_360.mp4";
 
     if (sphere::isSimulatorMachine()) {
       app.dataRoot += "/Volumes/Data/media/";
