@@ -115,7 +115,7 @@ void VideoApp::onCreate() {
   videoDecoder.start();
 
   // generate texture
-  tex.filter(Texture::NEAREST);
+  tex.filter(Texture::LINEAR);
   tex.wrap(Texture::REPEAT, Texture::CLAMP_TO_EDGE, Texture::CLAMP_TO_EDGE);
   tex.create2D(videoDecoder.width(), videoDecoder.height(), Texture::RGBA8,
                Texture::RGBA, Texture::UBYTE);
@@ -170,7 +170,7 @@ void VideoApp::onAnimate(al_sec dt) {
       mtcReader.getMTC(hour, minute, second, frame);
 
       state().global_clock = ((int32_t)hour * 360) + ((int32_t)minute * 60) +
-                             second + ((frame - 1) / 30.0);
+                             second + (frame / 30.0) + mtcReader.frameOffset;
     } else if (playing) {
       state().global_clock += dt;
     }
@@ -186,21 +186,22 @@ void VideoApp::onAnimate(al_sec dt) {
       ParameterGUI::draw(&mtcReader.TCframes);
       ParameterGUI::draw(&mtcReader.frameOffset);
 
-      ImGui::Text("%02i:%02i:%02i:%02i", hour, minute, second, frame);
+      ImGui::Text("%02i:%02i:%02i", hour, minute, second);
+
+      // ImGui::Text("%02i:%02i:%02i:%02i", hour, minute, second, frame);
       // int fps = mtcReader.fps();
-      int frameNum = mtcReader.frameNum();
-      ImGui::Text("Frame num : %i", frameNum);
+      // int frameNum = mtcReader.frameNum();
+      // ImGui::Text("Frame num : %i", frameNum);
       ImGui::End();
       imguiEndFrame();
     }
   }
 
-  if (renderVideo.get() == 1.0) {
+  if ((renderVideo.get() == 1.0) && playing) {
     uint8_t *frame = videoDecoder.getVideoFrame(state().global_clock);
 
     if (frame) {
       tex.submit(frame);
-      previousClock = state().global_clock;
     }
   }
 }
@@ -208,29 +209,31 @@ void VideoApp::onAnimate(al_sec dt) {
 void VideoApp::onDraw(Graphics &g) {
   g.clear();
 
-  if (isPrimary()) {
-    if (renderVideo.get() == 1.0) {
-      g.viewport(0, 0, fbWidth(), fbHeight());
-      g.pushCamera(Viewpoint::IDENTITY);
+  if (playing) {
+    if (isPrimary()) {
+      if (renderVideo.get() == 1.0) {
+        g.viewport(0, 0, fbWidth(), fbHeight());
+        g.pushCamera(Viewpoint::IDENTITY);
+        tex.bind();
+        g.texture();
+        g.draw(quad);
+        tex.unbind();
+        g.popCamera();
+      }
+    } else {
+      // Renderer
+      g.shader(pano_shader);
+
+      // TODO: add exposure control
+      if (uniformChanged) {
+        g.shader().uniform("exposure", exposure);
+        uniformChanged = false;
+      }
+
       tex.bind();
-      g.texture();
-      g.draw(quad);
+      g.draw(sphere);
       tex.unbind();
-      g.popCamera();
     }
-  } else {
-    // Renderer
-    g.shader(pano_shader);
-
-    // TODO: add exposure control
-    if (uniformChanged) {
-      g.shader().uniform("exposure", exposure);
-      uniformChanged = false;
-    }
-
-    tex.bind();
-    g.draw(sphere);
-    tex.unbind();
   }
 
   if (showHUD) {

@@ -33,8 +33,6 @@ public:
     videoFileToLoad = dataRoot + videoFileUrl;
   };
 
-  double previousClock{0};
-
 private:
   Texture tex;
   VAOMesh quad, sphere;
