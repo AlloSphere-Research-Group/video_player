@@ -17,7 +17,6 @@ int main(int argc, char *argv[]) {
     // videoUrl = "renate-barcelona-driving.mp4";
     // videoUrl = "3DH-Take1-Side-By-Side-4000x2000.mp4";
     // videoUrl = "unreal-village-omnistereo.mp4";
-    // videoUrl = "LastWhispers_040719_ambix_360.mp4";
     // videoUrl = "LW_KT_Edit_1205_360-convert.mp4";
     // videoUrl = "Lw Kt Edit 0103 Good 75Mbps 8K 360-4k-30fps-noaudio.m4v";
     // videoUrl = "Iron_Man-Trailer_HD.mp4";

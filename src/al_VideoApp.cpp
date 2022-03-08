@@ -170,7 +170,8 @@ void VideoApp::onAnimate(al_sec dt) {
       mtcReader.getMTC(hour, minute, second, frame);
 
       state().global_clock = ((int32_t)hour * 360) + ((int32_t)minute * 60) +
-                             second + (frame / 30.0) + mtcReader.frameOffset;
+                             second + (frame / mtcReader.fps()) +
+                             mtcReader.frameOffset;
     } else if (playing) {
       state().global_clock += dt;
     }
@@ -186,12 +187,9 @@ void VideoApp::onAnimate(al_sec dt) {
       ParameterGUI::draw(&mtcReader.TCframes);
       ParameterGUI::draw(&mtcReader.frameOffset);
 
-      ImGui::Text("%02i:%02i:%02i", hour, minute, second);
+      ImGui::Text("%02i:%02i:%02i:%02i", hour, minute, second,
+                  (int)(frame / mtcReader.fps() * 100));
 
-      // ImGui::Text("%02i:%02i:%02i:%02i", hour, minute, second, frame);
-      // int fps = mtcReader.fps();
-      // int frameNum = mtcReader.frameNum();
-      // ImGui::Text("Frame num : %i", frameNum);
       ImGui::End();
       imguiEndFrame();
     }
@@ -202,6 +200,7 @@ void VideoApp::onAnimate(al_sec dt) {
 
     if (frame) {
       tex.submit(frame);
+      videoDecoder.gotVideoFrame();
     }
   }
 }
@@ -283,6 +282,7 @@ void VideoApp::onSound(AudioIOData &io) {
     if (playing && videoDecoder.hasAudio()) {
       uint8_t *audioBuffer = videoDecoder.getAudioFrame(state().global_clock);
 
+      // check if gotAudioFrame needed to be called before returning
       if (!audioBuffer)
         return;
 
@@ -294,6 +294,8 @@ void VideoApp::onSound(AudioIOData &io) {
       //   memcpy(io.outBuffer(i), audioBuffer + i * channelSize,
       //   channelSize);
       // }
+
+      videoDecoder.gotAudioFrame();
     }
   }
 }
