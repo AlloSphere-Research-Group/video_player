@@ -208,31 +208,29 @@ void VideoApp::onAnimate(al_sec dt) {
 void VideoApp::onDraw(Graphics &g) {
   g.clear();
 
-  if (playing) {
-    if (isPrimary()) {
-      if (renderVideo.get() == 1.0) {
-        g.viewport(0, 0, fbWidth(), fbHeight());
-        g.pushCamera(Viewpoint::IDENTITY);
-        tex.bind();
-        g.texture();
-        g.draw(quad);
-        tex.unbind();
-        g.popCamera();
-      }
-    } else {
-      // Renderer
-      g.shader(pano_shader);
-
-      // TODO: add exposure control
-      if (uniformChanged) {
-        g.shader().uniform("exposure", exposure);
-        uniformChanged = false;
-      }
-
+  if (isPrimary()) {
+    if (renderVideo.get() == 1.0) {
+      g.viewport(0, 0, fbWidth(), fbHeight());
+      g.pushCamera(Viewpoint::IDENTITY);
       tex.bind();
-      g.draw(sphere);
+      g.texture();
+      g.draw(quad);
       tex.unbind();
+      g.popCamera();
     }
+  } else {
+    // Renderer
+    g.shader(pano_shader);
+
+    // TODO: add exposure control
+    if (uniformChanged) {
+      g.shader().uniform("exposure", exposure);
+      uniformChanged = false;
+    }
+
+    tex.bind();
+    g.draw(sphere);
+    tex.unbind();
   }
 
   if (showHUD) {
