@@ -319,7 +319,6 @@ bool VideoApp::onKeyDown(const Keyboard &k) {
         pos = 0;
       }
       state().global_clock = pos;
-      videoDecoder.stream_seek((int64_t)(pos * AV_TIME_BASE), -10.0);
     }
   } else if (k.key() == ']') {
     if (isPrimary()) {
@@ -328,7 +327,6 @@ bool VideoApp::onKeyDown(const Keyboard &k) {
       double pos = state().global_clock;
       pos += 10.0;
       state().global_clock += 10.0;
-      videoDecoder.stream_seek((int64_t)(pos * AV_TIME_BASE), 10.0);
     }
   }
   return true;
