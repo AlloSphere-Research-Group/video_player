@@ -313,45 +313,68 @@ void VideoApp::onDraw(Graphics &g) {
 
 void VideoApp::onSound(AudioIOData &io) {
   if (isPrimary()) {
-    if (mPlaying && videoDecoder.hasAudio()) {
-      uint8_t *audioBuffer = videoDecoder.getAudioFrame(state().global_clock);
+    if (mPlaying) {
+      if (videoDecoder.hasAudio()) {
+        uint8_t *audioBuffer = videoDecoder.getAudioFrame(state().global_clock);
 
-      if (!audioBuffer)
-        return;
+        if (!audioBuffer)
+          return;
 
-      int channelSize = io.framesPerBuffer() * sizeof(float);
-      int frameSize = channelSize * videoDecoder.audioNumChannels();
+        int channelSize = io.framesPerBuffer() * sizeof(float);
+        int frameSize = channelSize * videoDecoder.audioNumChannels();
 
-      // ambisonics
-      if (decodeAmbisonics) {
-        float *audioBufferMap[4];
+        // ambisonics
+        if (decodeAmbisonics) {
+          float *audioBufferMap[4];
 
-        // map from FuMa to ACN
-        // TODO: should be determined from file metadata
-        int ambiMap[] = {0, 2, 3, 1};
+          // map from FuMa to ACN
+          // TODO: should be determined from file metadata
+          int ambiMap[] = {0, 2, 3, 1};
 
-        for (int ch = 0; ch < 4; ++ch) {
-          audioBufferMap[ch] =
-              (float *)(audioBuffer + ambiMap[ch] * channelSize);
+          for (int ch = 0; ch < 4; ++ch) {
+            audioBufferMap[ch] =
+                (float *)(audioBuffer + ambiMap[ch] * channelSize);
+          }
+
+          float *outbufs[64];
+          assert(io.channelsOut() <= 64);
+          for (unsigned int i = 0; i < io.channelsOut(); ++i) {
+            outbufs[i] = io.outBuffer(i);
+          }
+
+          ambisonics.decode((float **)outbufs, (const float **)audioBufferMap,
+                            channelSize);
+        } else { // no ambisonics
+          if (audioBuffer) {
+            memcpy(io.outBuffer(0), audioBuffer, frameSize);
+          }
+          // for (int i = 0; i < videoDecoder.audioNumChannels(); ++i) {
+          //   memcpy(io.outBuffer(i), audioBuffer + i * channelSize,
+          //   channelSize);
+          // }
         }
-
-        float *outbufs[64];
-        assert(io.channelsOut() <= 64);
-        for (int i = 0; i < io.channelsOut(); ++i) {
-          outbufs[i] = io.outBuffer(i);
-        }
-
-        ambisonics.decode((float **)outbufs, (const float **)audioBufferMap,
-                          channelSize);
-      } else { // no ambisonics
-        if (audioBuffer) {
-          memcpy(io.outBuffer(0), audioBuffer, frameSize);
-        }
-        // for (int i = 0; i < videoDecoder.audioNumChannels(); ++i) {
-        //   memcpy(io.outBuffer(i), audioBuffer + i * channelSize,
-        //   channelSize);
-        // }
       }
+      // Play additional audio tracks
+      float buffer[2048 * 60];
+      for (auto &sf : soundfiles) {
+        int numChannels = sf.soundfile->channels();
+        int framesRead = sf.soundfile->read(buffer, io.framesPerBuffer());
+        if (framesRead != io.framesPerBuffer()) {
+          std::cout << "short buffer " << framesRead << std::endl;
+        }
+        for (size_t i = 0; i < sf.outChannelMap.size(); i++) {
+          size_t outIndex = sf.outChannelMap[i];
+          if (!sf.mute) {
+            for (uint64_t sample = 0; sample < framesRead; sample++) {
+              io.outBuffer(outIndex)[sample] +=
+                  sf.gain * buffer[sample * numChannels + i];
+            }
+          }
+        }
+      }
+      //          if (downmixStereo.get() == 1.0) {
+      //              mDownMixer.downMix(io);
+      //          }
     }
   }
 }
@@ -467,4 +490,35 @@ void VideoApp::configureAudio() {
     //   decodeAmbisonics = true;
     // }
   }
+}
+
+bool VideoApp::loadAudioFile(std::string fileName,
+                             std::vector<size_t> channelMap, float gain,
+                             bool loop) {
+  soundfiles.push_back(MappedAudioFile());
+  soundfiles.back().soundfile = std::make_unique<SoundFileBuffered>(
+      File::conformPathToOS(dataRoot) + fileName, false, 4096);
+  soundfiles.back().soundfile->loop(loop);
+  if (!soundfiles.back().soundfile->opened()) {
+    std::cerr << "ERROR: opening " << File::conformPathToOS(dataRoot) + fileName
+              << std::endl;
+    return false;
+  }
+  if (soundfiles.back().soundfile->channels() != channelMap.size()) {
+    std::cerr << "Channel mismatch for file " << fileName << ". File has "
+              << soundfiles.back().soundfile->channels() << " but "
+              << channelMap.size() << " provided. Aborting." << std::endl;
+  }
+  soundfiles.back().outChannelMap = channelMap;
+  soundfiles.back().gain = gain;
+  soundfiles.back().fileName = fileName;
+  soundfiles.back().fileInfoText +=
+      " channels: " + std::to_string(soundfiles.back().soundfile->channels()) +
+      " sr: " + std::to_string(soundfiles.back().soundfile->frameRate()) + "\n";
+  soundfiles.back().fileInfoText +=
+      " length: " + std::to_string(soundfiles.back().soundfile->frames()) +
+      "\n";
+  soundfiles.back().fileInfoText +=
+      " gain: " + std::to_string(soundfiles.back().gain) + "\n";
+  return true;
 }

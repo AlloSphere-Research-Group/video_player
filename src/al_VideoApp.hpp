@@ -10,6 +10,15 @@ typedef struct SharedState {
   double global_clock;
 } SharedState;
 
+struct MappedAudioFile {
+  std::unique_ptr<SoundFileBuffered> soundfile;
+  std::vector<size_t> outChannelMap;
+  std::string fileInfoText;
+  std::string fileName;
+  float gain;
+  bool mute{false};
+};
+
 namespace al {
 
 class VideoApp : public DistributedAppWithState<SharedState> {
@@ -32,8 +41,10 @@ public:
 
   void setVideoFile(std::string videoFileUrl) {
     mVideoFileToLoad = dataRoot + videoFileUrl;
-  };
+  }
 
+  bool loadAudioFile(std::string name, std::vector<size_t> channelMap,
+                     float gain, bool loop);
   double wallTime{0};
 
 private:
@@ -55,6 +66,8 @@ private:
 
   bool mPlaying{true};
   bool mShowDiagnostic{false};
+
+  std::vector<MappedAudioFile> soundfiles;
 
   ParameterBool syncToMTC{"syncToMTC"};
   ParameterBool decodeInSimulator{"decodeInSimulator", "", 1.0};

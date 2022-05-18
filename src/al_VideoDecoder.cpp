@@ -522,14 +522,18 @@ int VideoDecoder::height() {
 }
 
 double VideoDecoder::fps() {
-  double guess = av_q2d(
-      av_guess_frame_rate(video_state.format_ctx, video_state.video_st, NULL));
-  if (guess == 0) {
-    std::cerr << "Could not guess frame rate" << std::endl;
-    guess = av_q2d(video_state.format_ctx->streams[video_state.video_st_idx]
-                       ->r_frame_rate);
+  if (video_state.format_ctx && video_state.video_st) {
+
+    double guess = av_q2d(av_guess_frame_rate(video_state.format_ctx,
+                                              video_state.video_st, NULL));
+    if (guess == 0) {
+      std::cerr << "Could not guess frame rate" << std::endl;
+      guess = av_q2d(video_state.format_ctx->streams[video_state.video_st_idx]
+                         ->r_frame_rate);
+    }
+    return guess;
   }
-  return guess;
+  return 30;
 }
 
 void VideoDecoder::cleanup() {
