@@ -64,6 +64,7 @@ private:
   bool showHUD{false};
 
   std::vector<MappedAudioFile> soundfiles;
+  uint64_t samplesPlayed{0};
 
   ParameterBool syncToMTC{"syncToMTC"};
   ParameterBool renderVideo{"renderVideo", "", 1.0};

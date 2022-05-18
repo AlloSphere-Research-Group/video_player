@@ -16,8 +16,8 @@ int main(int argc, char *argv[]) {
     app.dataRoot += "/data/media/";
   } else {
     // Change this to your local data root path
-    //    app.dataRoot = "c:/Users/Andres/Downloads/";
-    app.dataRoot = "/Users/cannedstar/code/video_player/data/";
+    app.dataRoot = "c:/Users/Andres/Documents/Last Whispers/Media/";
+    //    app.dataRoot = "/Users/cannedstar/code/video_player/data/";
   }
 
   std::string videoUrl;

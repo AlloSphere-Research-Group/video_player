@@ -81,6 +81,8 @@ void VideoApp::onInit() {
   exposure = 1.0f;
   audioIO().gain(1.0); // 0.4
   CuttleboneStateSimulationDomain<SharedState>::enableCuttlebone(this);
+
+  configureAudio();
 }
 
 void VideoApp::onCreate() {
@@ -92,8 +94,6 @@ void VideoApp::onCreate() {
   pano_shader.uniform("exposure", exposure);
   pano_shader.end();
 
-  // load video file
-  audioDomain()->stop();
   // TODO: temporarily disabled audio
   // if (!isPrimary()) {
   videoDecoder.enableAudio(false);
@@ -148,11 +148,6 @@ void VideoApp::onCreate() {
     state().global_clock = 0;
   }
 
-  configureAudio();
-
-  // start audio
-  audioDomain()->start();
-
   // start GUI
   if (hasCapability(Capability::CAP_2DGUI)) {
     imguiInit();
@@ -163,7 +158,7 @@ void VideoApp::onAnimate(al_sec dt) {
   nav().pos().set(0);
 
   if (isPrimary()) {
-    uint8_t hour, minute, second, frame;
+    uint8_t hour{0}, minute{0}, second{0}, frame{0};
 
     if (syncToMTC.get() == 1.0) {
       // TODO: review drift + handle offset (won't start at 0)
@@ -281,21 +276,24 @@ void VideoApp::onSound(AudioIOData &io) {
       uint8_t *audioBuffer = videoDecoder.getAudioFrame(state().global_clock);
 
       // check if gotAudioFrame needed to be called before returning
-      if (!audioBuffer)
-        return;
-
-      int channelSize = io.framesPerBuffer() * sizeof(float);
-      int frameSize = channelSize * videoDecoder.audioNumChannels();
-      memcpy(io.outBuffer(0), audioBuffer, frameSize);
-      videoDecoder.gotAudioFrame();
+      if (audioBuffer) {
+        int channelSize = io.framesPerBuffer() * sizeof(float);
+        int frameSize = channelSize * videoDecoder.audioNumChannels();
+        memcpy(io.outBuffer(0), audioBuffer, frameSize);
+        videoDecoder.gotAudioFrame();
+      }
 
       // Play additional audio tracks
       float buffer[2048 * 60];
       for (auto &sf : soundfiles) {
+
         int numChannels = sf.soundfile->channels();
         int framesRead = sf.soundfile->read(buffer, io.framesPerBuffer());
         if (framesRead != io.framesPerBuffer()) {
           std::cout << "short buffer " << framesRead << std::endl;
+        }
+        if (&sf == &soundfiles[0]) {
+          samplesPlayed += framesRead;
         }
         for (size_t i = 0; i < sf.outChannelMap.size(); i++) {
           size_t outIndex = sf.outChannelMap[i];
@@ -307,6 +305,26 @@ void VideoApp::onSound(AudioIOData &io) {
           }
         }
       }
+      if (soundfiles.size() > 0 &&
+          fabs(state().global_clock -
+               samplesPlayed / float(soundfiles[0].soundfile->frameRate())) >
+              0.05) {
+        int newPosition =
+            int(state().global_clock * soundfiles[0].soundfile->frameRate());
+        std::cout << "Seeking to: " << newPosition << std::endl;
+        for (const auto &sf : soundfiles) {
+          sf.soundfile->seek(newPosition);
+        }
+        samplesPlayed = newPosition;
+      }
+      //      std::cout << state().global_clock << " -- "
+      //                << samplesPlayed /
+      //                float(soundfiles[0].soundfile->frameRate())
+      //                << " delta: "
+      //                << state().global_clock -
+      //                       samplesPlayed /
+      //                           float(soundfiles[0].soundfile->frameRate())
+      //                << std::endl;
     }
   }
 }
@@ -404,8 +422,23 @@ void VideoApp::configureAudio() {
     audioDomain()->audioIO().framesPerSecond(videoDecoder.audioSampleRate());
     audioDomain()->audioIO().framesPerBuffer(
         videoDecoder.audioSamplesPerChannel());
-    audioDomain()->audioIO().channelsOut(videoDecoder.audioNumChannels());
   }
+  unsigned int maxChan = 0;
+  float sr = 0;
+  for (const auto &sf : soundfiles) {
+    for (const auto chan : sf.outChannelMap) {
+      if (chan > maxChan) {
+        maxChan = chan;
+      }
+    }
+    sr = sf.soundfile->frameRate();
+  }
+  if (sr != 0) {
+    audioDomain()->audioIO().framesPerSecond(sr);
+    audioDomain()->audioIO().framesPerBuffer(1024);
+  }
+  audioDomain()->audioIO().channelsOut(
+      std::max(maxChan + 1, videoDecoder.audioNumChannels()));
 }
 
 bool VideoApp::loadAudioFile(std::string fileName,
