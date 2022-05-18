@@ -16,8 +16,8 @@ int main(int argc, char *argv[]) {
     app.dataRoot += "/data/media/";
   } else {
     // Change this to your local data root path
-    app.dataRoot = "c:/Users/Andres/Downloads/";
-    //    app.dataRoot = "/Users/cannedstar/code/video_player/data/";
+    //    app.dataRoot = "c:/Users/Andres/Downloads/";
+    app.dataRoot = "/Users/cannedstar/code/video_player/data/";
   }
 
   std::string videoUrl;
@@ -67,6 +67,9 @@ int main(int argc, char *argv[]) {
       }
     }
   }
+
+  auto dev = AudioDevice::defaultOutput();
+  app.audioDomain()->configure(dev, 48000, 512, 2, 0);
 
   app.start();
   return 0;
