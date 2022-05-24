@@ -11,7 +11,7 @@ int main(int argc, char *argv[]) {
 
   // Set data root
   if (sphere::isSimulatorMachine()) {
-    app.dataRoot += "/Volumes/Data/media/";
+    app.dataRoot += "/Volumes/Data/media/Last Whispers";
   } else if (sphere::isRendererMachine()) {
     app.dataRoot += "/data/media/";
   } else {
