@@ -22,8 +22,6 @@ namespace al {
 
 class VideoApp : public DistributedAppWithState<SharedState> {
 public:
-  VideoApp();
-
   virtual ~VideoApp() {}
 
   virtual void onInit() override;
@@ -45,6 +43,8 @@ public:
   void setVideoFile(std::string videoFileUrl) {
     videoFileToLoad = dataRoot + videoFileUrl;
   };
+
+  void setWindowed(Pose pose, Vec3f scale);
 
 private:
   Texture tex;
@@ -68,6 +68,10 @@ private:
 
   ParameterBool syncToMTC{"syncToMTC"};
   ParameterBool renderVideo{"renderVideo", "", 1.0};
+
+  ParameterBool windowed{"windowed", "", 0.0};
+  ParameterPose renderPose{"renderPose", "", Pose(Vec3d(0, 0, -4))};
+  ParameterVec3 renderScale{"renderScale", "", Vec3f(1, 1, 1)};
 };
 
 } // namespace al

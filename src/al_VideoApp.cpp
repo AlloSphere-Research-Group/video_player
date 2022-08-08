@@ -72,16 +72,12 @@ void main() {
 }
 )";
 
-VideoApp::VideoApp() {
-  // remove simulation domain to replace it with simulation domain that runs
-  // post onDraw()
-}
-
 void VideoApp::onInit() {
   exposure = 1.0f;
   audioIO().gain(1.0); // 0.4
   CuttleboneStateSimulationDomain<SharedState>::enableCuttlebone(this);
 
+  parameterServer() << renderPose << renderScale << windowed;
   configureAudio();
 }
 
@@ -105,8 +101,10 @@ void VideoApp::onCreate() {
 
   // TODO: check audio startup
   if (!videoDecoder.load(videoFileToLoad.c_str())) {
-    std::cerr << "Error loading video file" << std::endl;
-    quit();
+    if (videoFileToLoad.size() > 0) {
+      std::cerr << "Error loading video file" << std::endl;
+      quit();
+    }
   }
 
   // // TODO: this can probably be extracted from video file metadata
@@ -121,19 +119,7 @@ void VideoApp::onCreate() {
                Texture::RGBA, Texture::UBYTE);
 
   // generate mesh
-  quad.primitive(Mesh::TRIANGLE_STRIP);
-  quad.vertex(-1, 1);
-  quad.vertex(-1, -1);
-  quad.vertex(1, 1);
-  quad.vertex(1, -1);
-
-  // Add texture coordinates
-  quad.texCoord(0, 0);
-  quad.texCoord(0, 1);
-  quad.texCoord(1, 0);
-  quad.texCoord(1, 1);
-
-  // update vao mesh
+  addTexRect(quad, -1, 1, 2, -2);
   quad.update();
 
   // addSphereWithTexcoords(sphere, 5, 20);
@@ -184,6 +170,9 @@ void VideoApp::onAnimate(al_sec dt) {
 
       ImGui::Text("%02i:%02i:%02i:%02i", hour, minute, second,
                   (int)(frame / mtcReader.fps() * 100));
+      ParameterGUI::draw(&renderPose);
+      ParameterGUI::draw(&renderScale);
+      ParameterGUI::draw(&windowed);
 
       ImGui::End();
       imguiEndFrame();
@@ -205,27 +194,62 @@ void VideoApp::onDraw(Graphics &g) {
 
   if (isPrimary()) {
     if (renderVideo.get() == 1.0) {
-      g.viewport(0, 0, fbWidth(), fbHeight());
-      g.pushCamera(Viewpoint::IDENTITY);
+      g.pushMatrix();
+      g.translate(renderPose.get().pos());
+      g.rotate(renderPose.get().quat());
+      g.scale(renderScale.get());
+      g.scale((float)videoDecoder.width() / (float)videoDecoder.height(), 1, 1);
       tex.bind();
       g.texture();
       g.draw(quad);
       tex.unbind();
-      g.popCamera();
+
+      g.popMatrix();
+    } else {
+      g.pushMatrix();
+      g.translate(renderPose.get().pos());
+      g.rotate(renderPose.get().quat());
+      g.scale(renderScale.get());
+      g.scale((float)videoDecoder.width() / (float)videoDecoder.height(), 1, 1);
+      tex.bind();
+      g.texture();
+      g.draw(sphere);
+      tex.unbind();
+
+      g.popMatrix();
     }
   } else {
-    // Renderer
-    g.shader(pano_shader);
+    g.pushMatrix();
+    if (windowed.get() == 1.0) {
+      // TODO there is likely a better way to set the pose.
+      g.translate(renderPose.get().pos());
+      g.rotate(renderPose.get().quat());
+      g.scale(renderScale.get());
+      g.texture();
+      tex.bind();
+      g.scale((float)videoDecoder.width() / (float)videoDecoder.height(), 1, 1);
+      g.draw(quad);
+      tex.unbind();
+    } else {
 
-    // TODO: add exposure control
-    if (uniformChanged) {
-      g.shader().uniform("exposure", exposure);
-      uniformChanged = false;
+      // Renderer
+      g.shader(pano_shader);
+
+      // TODO: add exposure control
+      if (uniformChanged) {
+        g.shader().uniform("exposure", exposure);
+        uniformChanged = false;
+      }
+
+      tex.bind();
+      // TODO there is likely a better way to set the pose.
+      //      g.translate(renderPose.get().pos());
+      g.rotate(renderPose.get().quat());
+      g.scale(renderScale.get());
+      g.draw(sphere);
+      tex.unbind();
     }
-
-    tex.bind();
-    g.draw(sphere);
-    tex.unbind();
+    g.popMatrix();
   }
 
   if (showHUD) {
@@ -470,4 +494,10 @@ bool VideoApp::loadAudioFile(std::string fileName,
   soundfiles.back().fileInfoText +=
       " gain: " + std::to_string(soundfiles.back().gain) + "\n";
   return true;
+}
+
+void VideoApp::setWindowed(Pose pose, Vec3f scale) {
+  windowed = 1.0;
+  renderPose.set(pose);
+  renderScale.set(scale);
 }
