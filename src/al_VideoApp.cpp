@@ -83,6 +83,10 @@ void VideoApp::onInit() {
   CuttleboneStateSimulationDomain<SharedState>::enableCuttlebone(this);
 
   configureAudio();
+  for (const auto &sf : soundfiles) {
+    sf.soundfile->seek(- audioDelay);
+  }
+  samplesPlayed = -audioDelay;
 }
 
 void VideoApp::onCreate() {
@@ -307,13 +311,18 @@ void VideoApp::onSound(AudioIOData &io) {
       }
       if (soundfiles.size() > 0 &&
           fabs(state().global_clock -
-               samplesPlayed / float(soundfiles[0].soundfile->frameRate())) >
+               (samplesPlayed + audioDelay)/ float(soundfiles[0].soundfile->frameRate())) >
               0.05) {
         int newPosition =
-            int(state().global_clock * soundfiles[0].soundfile->frameRate());
+            int(state().global_clock * soundfiles[0].soundfile->frameRate() - audioDelay );
         std::cout << "Seeking to: " << newPosition << std::endl;
+        
         for (const auto &sf : soundfiles) {
-          sf.soundfile->seek(newPosition);
+          if (newPosition > 0) {
+            sf.soundfile->seek(newPosition);
+          } else {
+            sf.soundfile->seek(newPosition);
+          }
         }
         samplesPlayed = newPosition;
       }
@@ -446,7 +455,7 @@ bool VideoApp::loadAudioFile(std::string fileName,
                              bool loop) {
   soundfiles.push_back(MappedAudioFile());
   soundfiles.back().soundfile = std::make_unique<SoundFileBuffered>(
-      File::conformPathToOS(dataRoot) + fileName, false, 4096);
+      File::conformPathToOS(dataRoot) + fileName, false, 16000);
   soundfiles.back().soundfile->loop(loop);
   if (!soundfiles.back().soundfile->opened()) {
     std::cerr << "ERROR: opening " << File::conformPathToOS(dataRoot) + fileName

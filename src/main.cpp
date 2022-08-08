@@ -35,6 +35,9 @@ int main(int argc, char *argv[]) {
       assert(app.audioDomain()->parameters()[0]->getName() == "gain");
       app.audioDomain()->parameters()[0]->fromFloat(
           appConfig.getd("globalGain"));
+    }    
+    if (appConfig.hasKey<double>("audioDelay")) {
+      app.setAudioDelay(appConfig.getd("audioDelay"));
     }
 
     // Load audio for simulator only
@@ -57,6 +60,7 @@ int main(int argc, char *argv[]) {
           for (auto channel : outChannelsToml) {
             outChannels.push_back(channel);
           }
+std::cout << name << "   " << outChannels[0] << " "  << gain << std::endl;
           // Load requested file into app. If any file fails, abort.
           if (!app.loadAudioFile(name, outChannels, gain, loop)) {
             return -1;

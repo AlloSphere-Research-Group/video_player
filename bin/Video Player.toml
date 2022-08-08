@@ -1,4 +1,5 @@
 videoFile = "LW_2K_ERP_noaudio.mp4"
+audioDelay=-25000
 
 [[audioFile]]
 name = "Last Whispers 54.1 Allosphere Mix track 00 LFE Spkr 48.wav"
@@ -127,7 +128,7 @@ gain = 1.0
 
 [[audioFile]]
 name = "Last Whispers 54.1 Allosphere Mix track 25 Spkr 29.wav"
-outChannels = [29]
+outChannels = [28]
 gain = 1.0
 
 [[audioFile]]
