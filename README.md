@@ -1,56 +1,62 @@
-# allotemplate
-Template for creating applications using allolib. This template is suitable for large projects wil multiple files and dependencies where you need more control. If you are prototyping single files or want to explore the allolib examples, use the [allolib_playground repo](https://github.com/AlloSphere-Research-Group/allolib_playground).
+# Video Player.
 
-Developed by:
+This is a distributed video and audio player for the Allosphere. It can player
+equirectangular surround videos or regular rectangular videos thorugh omni-
+rendering.
 
-AlloSphere Research Group
+The application takes an argument that can be a video file or a video player
+"session".
 
-University of California, Santa Barbara
+# Usage
 
-# Installation
+Press '[' or ']' to seek 10 seconds back or forward.
 
-## Dependencies
+Press space bar to pause/play.
 
-terminal to run bash
+Press *Tab* to show/hide the GUI.
 
-git
+# Session format
 
-cmake version 3.0 or higher
+The session is described in a TOML file. The session file must end in ".toml"
+or it will be used as a vide file.
 
-## How to setup
-On a bash shell:
+## Video
 
-    git clone https://github.com/AlloSphere-Research-Group/allotemplate.git <project folder name>
-    cd <project folder name>
-    ./init.sh
+The video is described in the TOML file like this:
 
-### Optional: Pushing to your own git repository
-You can convert the folder into a git repository of your choice with the following commands. (Example is using a github repository: replace username and repository name)
+```
+videoFile = "LastWhispers_040719_ambix_360.mp4"
+windowed=true
+position=[0,0,-5]
+quaternion=[1,0,0,0]
+scale=[1.0,1.0,1.0]
+```
 
-    git remote add origin git@github.com:username/new_repo
+if *windowed* is true, the renderers will display a slab with the video instead
+of mapping the video to a sphere. The position and scale only affect this mode.
+However, the quaternion can be used to rotate the sphere.
 
-After the initial commit, set the upstream with the following command.
+If no *videoFile* is provided, this can serve as an audio only player. 
 
-    git push -u origin master
+## Audio
 
-## How to compile / run
-src folder contains the initial test code you can replace.
+Audio is managed in the configuration file using the same format and configuration
+for the mulichannel file player in allolin_playground tools/audio.
 
-Edit CMakeLists.txt and run.sh to match your code.
+```
+[[audioFile]]
+name = "mc_out0016_v000313_series0001_ALL630.wav"
+outChannels = [16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 
+                26, 27, 28, 29, 30, 31, 32, 33, 34, 35,
+                36, 37, 38, 39, 40, 41, 42, 43, 44, 45 ]
+gain = 1.0
 
-On a bash shell:
+[[audioFile]]
+name = "mc_out0016_v000313_series0001_ALL612L.wav"
+outChannels = [48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59]
+gain = 1.0
+```
 
-    ./configure.sh
-
-This will execute cmake on the project
-
-    ./run.sh
-
-This will compile the project, and run the binary if compilation is successful.
-
-## How to perform a distclean
-If you need to delete the distribution,
-
-    ./distclean.sh
-
-should recursively clean all the build directories of the project including those of allolib and its submodules.
+You can add any number of audio files that map to audio device channels (indexed
+from 0). The number of elements in outChannels must match the number of channels 
+in the audio file.
