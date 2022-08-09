@@ -38,9 +38,7 @@ public:
 
   bool loadAudioFile(std::string name, std::vector<size_t> channelMap,
                      float gain, bool loop);
-  void setAudioDelay(int32_t delaySamples) {
-    audioDelay = delaySamples;
-  }
+  void setAudioDelay(int32_t delaySamples) { audioDelay = delaySamples; }
   double wallTime{0};
 
   void setVideoFile(std::string videoFileUrl) {
@@ -71,7 +69,7 @@ private:
   int32_t audioDelay{0};
 
   ParameterBool syncToMTC{"syncToMTC"};
-  ParameterBool renderVideo{"renderVideo", "", 0.0};
+  ParameterBool renderVideo{"renderVideo", "", 1.0};
 
   ParameterBool windowed{"windowed", "", 0.0};
   ParameterPose renderPose{"renderPose", "", Pose(Vec3d(0, 0, -4))};

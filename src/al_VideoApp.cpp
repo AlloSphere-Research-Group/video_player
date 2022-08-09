@@ -136,6 +136,8 @@ void VideoApp::onCreate() {
     fps(videoDecoder.fps());
     mtcReader.TCframes.setCurrent("30");
     state().global_clock = 0;
+    renderVideo.set(0.0);
+    showHUD = true;
   }
 
   // start GUI
