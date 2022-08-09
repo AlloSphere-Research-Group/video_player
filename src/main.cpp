@@ -42,7 +42,7 @@ bool loadSession(VideoApp &app, std::string sessionFile) {
       std::cerr << "ERROR: scale in session file has wrong size." << std::endl;
     }
   }
-  if (appConfig.hasKey<bool>("window")) {
+  if (appConfig.hasKey<bool>("windowed")) {
     app.setWindowed(p, s);
   }
 
@@ -100,7 +100,7 @@ int main(int argc, char *argv[]) {
   } else {
     // Change this to your local data root path
     app.dataRoot =
-        al::File::conformDirectory("c:/Users/Andres/Documents/Mangroves");
+        al::File::conformDirectory("C:/Users/Andres/Documents/Mangroves");
     //    app.dataRoot = "/Users/cannedstar/code/video_player/data/";
   }
 

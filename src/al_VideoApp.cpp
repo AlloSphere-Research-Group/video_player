@@ -80,7 +80,7 @@ void VideoApp::onInit() {
   parameterServer() << renderPose << renderScale << windowed;
   configureAudio();
   for (const auto &sf : soundfiles) {
-    sf.soundfile->seek(- audioDelay);
+    sf.soundfile->seek(-audioDelay);
   }
   samplesPlayed = -audioDelay;
 }
@@ -183,7 +183,7 @@ void VideoApp::onAnimate(al_sec dt) {
     }
   }
 
-  if (playing) {
+  if (playing && renderVideo.get() == 1.0) {
     uint8_t *frame = videoDecoder.getVideoFrame(state().global_clock);
 
     if (frame) {
@@ -196,64 +196,69 @@ void VideoApp::onAnimate(al_sec dt) {
 void VideoApp::onDraw(Graphics &g) {
   g.clear();
 
-  if (isPrimary()) {
-    if (renderVideo.get() == 1.0) {
-      g.pushMatrix();
-      g.translate(renderPose.get().pos());
-      g.rotate(renderPose.get().quat());
-      g.scale(renderScale.get());
-      g.scale((float)videoDecoder.width() / (float)videoDecoder.height(), 1, 1);
-      tex.bind();
-      g.texture();
-      g.draw(quad);
-      tex.unbind();
+  if (renderVideo.get() == 1.0) {
+    if (isPrimary()) {
+      if (windowed.get() == 1.0) {
+        g.pushMatrix();
+        g.translate(renderPose.get().pos());
+        g.rotate(renderPose.get().quat());
+        g.scale(renderScale.get());
+        g.scale((float)videoDecoder.width() / (float)videoDecoder.height(), 1,
+                1);
+        tex.bind();
+        g.texture();
+        g.draw(quad);
+        tex.unbind();
 
-      g.popMatrix();
-    } else {
-      g.pushMatrix();
-      g.translate(renderPose.get().pos());
-      g.rotate(renderPose.get().quat());
-      g.scale(renderScale.get());
-      g.scale((float)videoDecoder.width() / (float)videoDecoder.height(), 1, 1);
-      tex.bind();
-      g.texture();
-      g.draw(sphere);
-      tex.unbind();
+        g.popMatrix();
+      } else {
+        g.pushMatrix();
+        g.translate(renderPose.get().pos());
+        g.rotate(renderPose.get().quat());
+        g.scale(renderScale.get());
+        g.scale((float)videoDecoder.width() / (float)videoDecoder.height(), 1,
+                1);
+        tex.bind();
+        g.texture();
+        g.draw(sphere);
+        tex.unbind();
 
-      g.popMatrix();
-    }
-  } else {
-    g.pushMatrix();
-    if (windowed.get() == 1.0) {
-      // TODO there is likely a better way to set the pose.
-      g.translate(renderPose.get().pos());
-      g.rotate(renderPose.get().quat());
-      g.scale(renderScale.get());
-      g.texture();
-      tex.bind();
-      g.scale((float)videoDecoder.width() / (float)videoDecoder.height(), 1, 1);
-      g.draw(quad);
-      tex.unbind();
-    } else {
-
-      // Renderer
-      g.shader(pano_shader);
-
-      // TODO: add exposure control
-      if (uniformChanged) {
-        g.shader().uniform("exposure", exposure);
-        uniformChanged = false;
+        g.popMatrix();
       }
+    } else {
+      g.pushMatrix();
+      if (windowed.get() == 1.0) {
+        // TODO there is likely a better way to set the pose.
+        g.translate(renderPose.get().pos());
+        g.rotate(renderPose.get().quat());
+        g.scale(renderScale.get());
+        g.texture();
+        tex.bind();
+        g.scale((float)videoDecoder.width() / (float)videoDecoder.height(), 1,
+                1);
+        g.draw(quad);
+        tex.unbind();
+      } else {
 
-      tex.bind();
-      // TODO there is likely a better way to set the pose.
-      //      g.translate(renderPose.get().pos());
-      g.rotate(renderPose.get().quat());
-      g.scale(renderScale.get());
-      g.draw(sphere);
-      tex.unbind();
+        // Renderer
+        g.shader(pano_shader);
+
+        // TODO: add exposure control
+        if (uniformChanged) {
+          g.shader().uniform("exposure", exposure);
+          uniformChanged = false;
+        }
+
+        tex.bind();
+        // TODO there is likely a better way to set the pose.
+        //      g.translate(renderPose.get().pos());
+        g.rotate(renderPose.get().quat());
+        g.scale(renderScale.get());
+        g.draw(sphere);
+        tex.unbind();
+      }
+      g.popMatrix();
     }
-    g.popMatrix();
   }
 
   if (showHUD) {
@@ -335,12 +340,13 @@ void VideoApp::onSound(AudioIOData &io) {
       }
       if (soundfiles.size() > 0 &&
           fabs(state().global_clock -
-               (samplesPlayed + audioDelay)/ float(soundfiles[0].soundfile->frameRate())) >
-              0.05) {
+               (samplesPlayed + audioDelay) /
+                   float(soundfiles[0].soundfile->frameRate())) > 0.05) {
         int newPosition =
-            int(state().global_clock * soundfiles[0].soundfile->frameRate() - audioDelay );
+            int(state().global_clock * soundfiles[0].soundfile->frameRate() -
+                audioDelay);
         std::cout << "Seeking to: " << newPosition << std::endl;
-        
+
         for (const auto &sf : soundfiles) {
           if (newPosition > 0) {
             sf.soundfile->seek(newPosition);
