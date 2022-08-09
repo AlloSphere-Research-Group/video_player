@@ -77,6 +77,7 @@ bool loadSession(VideoApp &app, std::string sessionFile) {
         if (!app.loadAudioFile(name, outChannels, gain, loop)) {
           return false;
         }
+        std::cout << "Audio: " << name << std::endl;
       }
     } else {
       return false;
