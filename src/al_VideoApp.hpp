@@ -64,7 +64,7 @@ private:
   MTCReader mtcReader;
 
   bool playing{true};
-  bool showHUD{true};
+  bool showHUD{false};
 
   std::vector<MappedAudioFile> soundfiles;
   uint64_t samplesPlayed{0};

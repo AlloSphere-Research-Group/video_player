@@ -183,7 +183,7 @@ void VideoApp::onAnimate(al_sec dt) {
     }
   }
 
-  if ((renderVideo.get() == 1.0) && playing) {
+  if (playing) {
     uint8_t *frame = videoDecoder.getVideoFrame(state().global_clock);
 
     if (frame) {
