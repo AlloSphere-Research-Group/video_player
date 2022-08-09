@@ -5,6 +5,7 @@
 using namespace al;
 
 bool loadSession(VideoApp &app, std::string sessionFile) {
+  std::cout << "Using video session: " << sessionFile << std::endl;
   TomlLoader appConfig(sessionFile);
 
   if (appConfig.hasKey<std::string>("videoFile")) {
