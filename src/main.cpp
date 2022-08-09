@@ -89,9 +89,9 @@ int main(int argc, char *argv[]) {
 
   // Set data root
   if (sphere::isSimulatorMachine()) {
-    app.dataRoot = File::conformDirectory("/Volumes/Data/media/Last Whispers");
+    app.dataRoot = File::conformDirectory("/Volumes/Data/media/LastWhispers");
   } else if (sphere::isRendererMachine()) {
-    app.dataRoot = File::conformDirectory("/data/media/");
+    app.dataRoot = File::conformDirectory("/data/media/LastWhispers");
   } else {
     // Change this to your local data root path
     app.dataRoot =
@@ -107,6 +107,8 @@ int main(int argc, char *argv[]) {
     std::string fileName = argv[1];
     if (fileName.substr(fileName.size() - 5) == ".toml") {
       sessionFile = fileName;
+      app.dataRoot = al::File::directory(fileName);
+      std::cout << "Setting data root to " << app.dataRoot << std::endl;
     } else {
       videoUrl = fileName;
       app.setVideoFile(videoUrl);
