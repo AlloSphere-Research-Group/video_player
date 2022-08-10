@@ -131,6 +131,7 @@ int main(int argc, char *argv[]) {
   if (!app.isPrimary() && app.omniRendering) {
     // Disable stereo
     app.omniRendering->stereo(false);
+    app.displayMode(Window::DEFAULT_BUF);
   }
 
   app.start();

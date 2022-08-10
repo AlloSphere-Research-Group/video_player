@@ -87,6 +87,12 @@ void VideoApp::onInit() {
     gainComp.configure(AlloSphereSpeakerLayoutCompensated());
     audioIO().append(gainComp);
   }
+  // Doesn't work to avoid stereo display
+  // if (!isPrimary() && omniRendering) {
+  //   // Disable stereo
+  //   omniRendering->stereo(false);
+  //   displayMode(Window::DEFAULT_BUF);
+  // }
 }
 
 void VideoApp::onCreate() {
@@ -143,6 +149,11 @@ void VideoApp::onCreate() {
     renderVideo.set(0.0);
     showHUD = true;
   }
+  // if (!isPrimary() && omniRendering) {
+  //   // Disable stereo
+  //   omniRendering->stereo(false);
+  //   displayMode(Window::DEFAULT_BUF);
+  // }
 
   // start GUI
   if (hasCapability(Capability::CAP_2DGUI)) {
