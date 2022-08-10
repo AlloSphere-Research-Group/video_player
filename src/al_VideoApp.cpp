@@ -83,6 +83,10 @@ void VideoApp::onInit() {
     sf.soundfile->seek(-audioDelay);
   }
   samplesPlayed = -audioDelay;
+  if (sphere::isRendererMachine()) {
+    gainComp.configure(AlloSphereSpeakerLayoutCompensated());
+    audioIO().append(gainComp);
+  }
 }
 
 void VideoApp::onCreate() {
