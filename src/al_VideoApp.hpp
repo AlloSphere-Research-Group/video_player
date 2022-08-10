@@ -3,6 +3,7 @@
 
 #include "MTCReader.hpp"
 #include "al/app/al_DistributedApp.hpp"
+#include "al/sound/al_SpeakerAdjustment.hpp"
 #include "al_ext/video/al_VideoDecoder.hpp"
 
 typedef struct SharedState {
@@ -67,6 +68,8 @@ private:
   std::vector<MappedAudioFile> soundfiles;
   uint64_t samplesPlayed{0};
   int32_t audioDelay{0};
+
+  SpeakerDistanceGainAdjustmentProcessor gainComp;
 
   ParameterBool syncToMTC{"syncToMTC"};
   ParameterBool renderVideo{"renderVideo", "", 1.0};
