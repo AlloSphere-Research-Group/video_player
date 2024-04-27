@@ -7,7 +7,8 @@
 #include "al_ext/video/al_VideoDecoder.hpp"
 
 typedef struct SharedState {
-  double global_clock;
+  double global_clock{0.0};
+  bool playing{false};
 } SharedState;
 
 struct MappedAudioFile {
@@ -62,7 +63,7 @@ private:
 
   MTCReader mtcReader;
 
-  bool playing{true};
+  // bool playing{true};
   bool showHUD{false};
 
   std::vector<MappedAudioFile> soundfiles;

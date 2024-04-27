@@ -174,7 +174,7 @@ void VideoApp::onAnimate(al_sec dt) {
       state().global_clock = ((int32_t)hour * 360) + ((int32_t)minute * 60) +
                              second + (frame / mtcReader.fps()) +
                              mtcReader.frameOffset;
-    } else if (playing) {
+    } else if (state().playing) {
       state().global_clock += dt;
     }
 
@@ -200,7 +200,7 @@ void VideoApp::onAnimate(al_sec dt) {
     }
   }
 
-  if (playing && renderVideo.get() == 1.0) {
+  if (state().playing && renderVideo.get() == 1.0) {
     uint8_t *frame = videoDecoder.getVideoFrame(state().global_clock);
 
     if (frame) {
@@ -322,7 +322,7 @@ void VideoApp::onDraw(Graphics &g) {
 
 void VideoApp::onSound(AudioIOData &io) {
   if (isPrimary()) {
-    if (playing) {
+    if (state().playing) {
       //uint8_t *audioBuffer = videoDecoder.getAudioFrame(state().global_clock);
 
       // check if gotAudioFrame needed to be called before returning
@@ -387,7 +387,7 @@ void VideoApp::onSound(AudioIOData &io) {
 
 bool VideoApp::onKeyDown(const Keyboard &k) {
   if (k.key() == ' ') {
-    playing = !playing;
+    state().playing = !state().playing;
   } else if (k.key() == 'o') {
     if (hasCapability(CAP_OMNIRENDERING)) {
       omniRendering->drawOmni = !omniRendering->drawOmni;
@@ -406,6 +406,7 @@ bool VideoApp::onKeyDown(const Keyboard &k) {
         pos = 0;
       }
       state().global_clock = pos;
+      state().playing = false;
     }
   } else if (k.key() == ']') {
     if (isPrimary()) {
@@ -414,6 +415,8 @@ bool VideoApp::onKeyDown(const Keyboard &k) {
       double pos = state().global_clock;
       pos += 10.0;
       state().global_clock += 10.0;
+      state().playing = false;
+
     }
   }
   return true;
