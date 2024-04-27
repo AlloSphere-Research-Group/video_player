@@ -323,15 +323,15 @@ void VideoApp::onDraw(Graphics &g) {
 void VideoApp::onSound(AudioIOData &io) {
   if (isPrimary()) {
     if (playing) {
-      uint8_t *audioBuffer = videoDecoder.getAudioFrame(state().global_clock);
+      //uint8_t *audioBuffer = videoDecoder.getAudioFrame(state().global_clock);
 
       // check if gotAudioFrame needed to be called before returning
-      if (audioBuffer) {
-        int channelSize = io.framesPerBuffer() * sizeof(float);
-        int frameSize = channelSize * videoDecoder.audioNumChannels();
-        memcpy(io.outBuffer(0), audioBuffer, frameSize);
-        videoDecoder.gotAudioFrame();
-      }
+      //if (audioBuffer) {
+      //  int channelSize = io.framesPerBuffer() * sizeof(float);
+      //  int frameSize = channelSize * videoDecoder.audioNumChannels();
+      //  memcpy(io.outBuffer(0), audioBuffer, frameSize);
+      //  videoDecoder.gotAudioFrame();
+      //}
 
       // Play additional audio tracks
       float buffer[2048 * 60];
@@ -502,7 +502,7 @@ bool VideoApp::loadAudioFile(std::string fileName,
                              bool loop) {
   soundfiles.push_back(MappedAudioFile());
   soundfiles.back().soundfile = std::make_unique<SoundFileBuffered>(
-      File::conformPathToOS(dataRoot) + fileName, false, 16000);
+      File::conformPathToOS(dataRoot) + fileName, false, 2048);
   soundfiles.back().soundfile->loop(loop);
   if (!soundfiles.back().soundfile->opened()) {
     std::cerr << "ERROR: opening " << File::conformPathToOS(dataRoot) + fileName
