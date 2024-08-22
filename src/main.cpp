@@ -52,7 +52,7 @@ bool loadSession(VideoApp &app, std::string sessionFile) {
   }
 
   // Load audio for simulator only
-  if (!sphere::isRendererMachine()) {
+  if (sphere::isSimulatorMachine()) {
     if (appConfig.hasKey<double>("audioDelay")) {
       app.setAudioDelay(appConfig.getd("audioDelay"));
     }
@@ -99,9 +99,9 @@ int main(int argc, char *argv[]) {
     app.dataRoot = File::conformDirectory("/data/media/LastWhispers");
   } else {
     // Change this to your local data root path
-    app.dataRoot =
-        al::File::conformDirectory("C:/Users/Andres/Documents/Mangroves");
-    //    app.dataRoot = "/Users/cannedstar/code/video_player/data/";
+    // app.dataRoot =
+    // al::File::conformDirectory("C:/Users/Andres/Documents/Mangroves");
+    app.dataRoot = "C:/Users/kenny/code/video_player/data/";
   }
 
   // Accept a video file or a 'session' file as command line argument

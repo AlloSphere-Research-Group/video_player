@@ -6,12 +6,13 @@ project(VideoPlayer)
 set(APP_NAME allo_player)
 
 # path to main source file
-add_executable(${APP_NAME}
-               src/main.cpp
-               src/al_VideoApp.hpp
-               src/al_VideoApp.cpp
-               src/MTCReader.hpp
-               src/MTCReader.cpp)
+# add_executable(${APP_NAME}
+#                src/main.cpp
+#                src/al_VideoApp.hpp
+#                src/al_VideoApp.cpp
+#                src/MTCReader.hpp
+#                src/MTCReader.cpp)
+add_executable(${APP_NAME} src/test2.cpp)
 
 # add allolib as a subdirectory to the project
 add_subdirectory(allolib)
@@ -26,26 +27,33 @@ endif()
 # link allolib to project
 target_link_libraries(${APP_NAME} PRIVATE al)
 
+# find_package(FFMPEG REQUIRED)
+# target_include_directories(${APP_NAME} PRIVATE ${FFMPEG_INCLUDE_DIRS})
+# target_link_directories(${APP_NAME} PRIVATE ${FFMPEG_LIBRARY_DIRS})
+# target_link_libraries(${APP_NAME} PRIVATE ${FFMPEG_LIBRARIES})
+
 # set(FFMPEG_ROOT "C:\\Users\\Andres\\source\\repos\\ffmpeg-n4.4-78-g031c0cb0b4-win64-gpl-shared-4.4" CACHE STRING "Path to FFMPEG lib and include directories")
 # set(FFMPEG_ROOT "/usr/local/" CACHE STRING "Path to FFMPEG lib and include directories")
-set(FFMPEG_ROOT "/alloshare/code/kenny/ffmpeg_install/" CACHE STRING "Path to FFMPEG lib and include directories")
-message("Using FFMPEG at ${FFMPEG_ROOT}")
+# set(FFMPEG_ROOT "/alloshare/code/kenny/ffmpeg_install/" CACHE STRING "Path to FFMPEG lib and include directories")
+# message("Using FFMPEG at ${FFMPEG_ROOT}")
 
 # FFMPEG
-find_path(AVCODEC_INCLUDE_DIR libavcodec/avcodec.h PATHS ${FFMPEG_ROOT} PATH_SUFFIXES "include")
-find_library(AVCODEC_LIBRARY avcodec PATHS ${FFMPEG_ROOT} PATH_SUFFIXES "lib")
+# find_path(AVCODEC_INCLUDE_DIR libavcodec/avcodec.h PATHS ${FFMPEG_ROOT} PATH_SUFFIXES "include")
+# find_library(AVCODEC_LIBRARY avcodec PATHS ${FFMPEG_ROOT} PATH_SUFFIXES "lib")
 
-find_path(AVFORMAT_INCLUDE_DIR libavformat/avformat.h PATHS ${FFMPEG_ROOT} PATH_SUFFIXES "include")
-find_library(AVFORMAT_LIBRARY avformat PATHS ${FFMPEG_ROOT} PATH_SUFFIXES "lib")
+# find_path(AVFORMAT_INCLUDE_DIR libavformat/avformat.h PATHS ${FFMPEG_ROOT} PATH_SUFFIXES "include")
+# find_library(AVFORMAT_LIBRARY avformat PATHS ${FFMPEG_ROOT} PATH_SUFFIXES "lib")
 
-find_path(AVUTIL_INCLUDE_DIR libavutil/avutil.h PATHS ${FFMPEG_ROOT} PATH_SUFFIXES "include")
-find_library(AVUTIL_LIBRARY avutil PATHS ${FFMPEG_ROOT} PATH_SUFFIXES "lib")
+# find_path(AVUTIL_INCLUDE_DIR libavutil/avutil.h PATHS ${FFMPEG_ROOT} PATH_SUFFIXES "include")
+# find_library(AVUTIL_LIBRARY avutil PATHS ${FFMPEG_ROOT} PATH_SUFFIXES "lib")
 
-find_path(AVDEVICE_INCLUDE_DIR libavdevice/avdevice.h PATHS ${FFMPEG_ROOT} PATH_SUFFIXES "include")
-find_library(AVDEVICE_LIBRARY avdevice PATHS ${FFMPEG_ROOT} PATH_SUFFIXES "lib")
+# find_path(AVDEVICE_INCLUDE_DIR libavdevice/avdevice.h PATHS ${FFMPEG_ROOT} PATH_SUFFIXES "include")
+# find_library(AVDEVICE_LIBRARY avdevice PATHS ${FFMPEG_ROOT} PATH_SUFFIXES "lib")
 
-find_path(SWSCALE_INCLUDE_DIR libswscale/swscale.h PATHS ${FFMPEG_ROOT} PATH_SUFFIXES "include")
-find_library(SWSCALE_LIBRARY swscale PATHS ${FFMPEG_ROOT} PATH_SUFFIXES "lib")
+# find_path(SWSCALE_INCLUDE_DIR libswscale/swscale.h PATHS ${FFMPEG_ROOT} PATH_SUFFIXES "include")
+# find_library(SWSCALE_LIBRARY swscale PATHS ${FFMPEG_ROOT} PATH_SUFFIXES "lib")
+
+
 
 # find_path(AVCODEC_INCLUDE_DIR libavcodec/avcodec.h PATHS ${FFMPEG_ROOT} NO_DEFAULT_PATH)
 # find_library(AVCODEC_LIBRARY avcodec PATHS ${FFMPEG_ROOT} PATH_SUFFIXES "libavcodec" NO_DEFAULT_PATH)
