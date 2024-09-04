@@ -94,9 +94,9 @@ int main(int argc, char *argv[]) {
 
   // Set data root
   if (sphere::isSimulatorMachine()) {
-    app.dataRoot = File::conformDirectory("/Volumes/Data/media/LastWhispers");
+    app.dataRoot = File::conformDirectory("/Volumes/Data/Sensorium");
   } else if (sphere::isRendererMachine()) {
-    app.dataRoot = File::conformDirectory("/data/media/LastWhispers");
+    app.dataRoot = File::conformDirectory("/data/Sensorium");
   } else {
     // Change this to your local data root path
     // app.dataRoot =
