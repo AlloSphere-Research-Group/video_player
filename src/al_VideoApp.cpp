@@ -72,6 +72,31 @@ void main() {
 }
 )";
 
+const std::string yuv_frag = R"(
+#version 330
+uniform sampler2D texY;
+uniform sampler2D texU;
+uniform sampler2D texV;
+
+in vec2 texcoord_;
+out vec4 frag_color;
+
+// can apply filters here
+void main() {
+  vec3 yuv;
+  yuv.r = texture(texY, texcoord_).r - 0.0625;
+  yuv.g = texture(texU, texcoord_).r - 0.5;
+  yuv.b = texture(texV, texcoord_).r - 0.5;
+
+  vec4 rgba;
+  rgba.r = yuv.r + 1.596 * yuv.b;
+  rgba.g = yuv.r - 0.813 * yuv.b - 0.391 * yuv.g;
+  rgba.b = yuv.r + 2.018 * yuv.g;
+  rgba.a = 1.0;
+  frag_color = rgba;
+}
+)";
+
 void VideoApp::onInit() {
   exposure = 1.0f;
   audioIO().gain(1.0); // 0.4
@@ -104,6 +129,14 @@ void VideoApp::onCreate() {
   pano_shader.uniform("exposure", exposure);
   pano_shader.end();
 
+  yuv_shader.compile(pano_vert, yuv_frag);
+
+  yuv_shader.begin();
+  yuv_shader.uniform("texY", 0);
+  yuv_shader.uniform("texU", 1);
+  yuv_shader.uniform("texV", 2);
+  yuv_shader.end();
+
   // TODO: temporarily disabled audio
   // if (!isPrimary()) {
   videoDecoder.enableAudio(false);
@@ -131,6 +164,19 @@ void VideoApp::onCreate() {
   tex.wrap(Texture::REPEAT, Texture::CLAMP_TO_EDGE, Texture::CLAMP_TO_EDGE);
   tex.create2D(videoDecoder.width(), videoDecoder.height(), Texture::RGBA8,
                Texture::RGBA, Texture::UBYTE);
+
+  texY.filter(Texture::LINEAR);
+  texY.wrap(Texture::REPEAT, Texture::CLAMP_TO_EDGE, Texture::CLAMP_TO_EDGE);
+  texY.create2D(videoDecoder.lineSize()[0], videoDecoder.height(), Texture::RED,
+                Texture::RED, Texture::UBYTE);
+  texU.filter(Texture::LINEAR);
+  texU.wrap(Texture::REPEAT, Texture::CLAMP_TO_EDGE, Texture::CLAMP_TO_EDGE);
+  texU.create2D(videoDecoder.lineSize()[1], videoDecoder.height() / 2,
+                Texture::RED, Texture::RED, Texture::UBYTE);
+  texV.filter(Texture::LINEAR);
+  texV.wrap(Texture::REPEAT, Texture::CLAMP_TO_EDGE, Texture::CLAMP_TO_EDGE);
+  texV.create2D(videoDecoder.lineSize()[2], videoDecoder.height() / 2,
+                Texture::RED, Texture::RED, Texture::UBYTE);
 
   // generate mesh
   addTexRect(quad, -1, 1, 2, -2);
@@ -201,10 +247,13 @@ void VideoApp::onAnimate(al_sec dt) {
   }
 
   if (state().playing && renderVideo.get() == 1.0) {
-    uint8_t *frame = videoDecoder.getVideoFrame(state().global_clock);
+    MediaFrame *frame = videoDecoder.getVideoFrame(state().global_clock);
 
     if (frame) {
-      tex.submit(frame);
+      // tex.submit(frame);
+      texY.submit(frame->dataY.data());
+      texU.submit(frame->dataU.data());
+      texV.submit(frame->dataV.data());
       videoDecoder.gotVideoFrame();
     }
   }
@@ -216,63 +265,77 @@ void VideoApp::onDraw(Graphics &g) {
   if (renderVideo.get() == 1.0) {
     if (isPrimary()) {
       if (windowed.get() == 1.0) {
-        g.pushMatrix();
-        g.translate(renderPose.get().pos());
-        g.rotate(renderPose.get().quat());
-        g.scale(renderScale.get());
-        g.scale((float)videoDecoder.width() / (float)videoDecoder.height(), 1,
-                1);
-        tex.bind();
-        g.texture();
-        g.draw(quad);
-        tex.unbind();
+        // g.pushMatrix();
+        // g.translate(renderPose.get().pos());
+        // g.rotate(renderPose.get().quat());
+        // g.scale(renderScale.get());
+        // g.scale((float)videoDecoder.width() / (float)videoDecoder.height(),
+        // 1,
+        //         1);
+        // tex.bind();
+        // g.texture();
+        // g.draw(quad);
+        // tex.unbind();
 
-        g.popMatrix();
+        // g.popMatrix();
       } else {
+        g.shader(yuv_shader);
         g.pushMatrix();
         g.translate(renderPose.get().pos());
         g.rotate(renderPose.get().quat());
         g.scale(renderScale.get());
         g.scale((float)videoDecoder.width() / (float)videoDecoder.height(), 1,
                 1);
-        tex.bind();
-        g.texture();
+        texY.bind(0);
+        texU.bind(1);
+        texV.bind(2);
+        // g.texture();
         g.draw(sphere);
-        tex.unbind();
+        texY.unbind(0);
+        texU.unbind(1);
+        texV.unbind(2);
 
         g.popMatrix();
       }
     } else {
       g.pushMatrix();
       if (windowed.get() == 1.0) {
-        // TODO there is likely a better way to set the pose.
-        g.translate(renderPose.get().pos());
-        g.rotate(renderPose.get().quat());
-        g.scale(renderScale.get());
-        g.texture();
-        tex.bind();
-        g.scale((float)videoDecoder.width() / (float)videoDecoder.height(), 1,
-                1);
-        g.draw(quad);
-        tex.unbind();
+        // // TODO there is likely a better way to set the pose.
+        // g.translate(renderPose.get().pos());
+        // g.rotate(renderPose.get().quat());
+        // g.scale(renderScale.get());
+        // g.texture();
+        // tex.bind();
+        // g.scale((float)videoDecoder.width() / (float)videoDecoder.height(),
+        // 1,
+        //         1);
+        // g.draw(quad);
+        // tex.unbind();
       } else {
 
         // Renderer
-        g.shader(pano_shader);
+        // g.shader(pano_shader);
+        g.shader(yuv_shader);
 
         // TODO: add exposure control
         if (uniformChanged) {
-          g.shader().uniform("exposure", exposure);
+          // g.shader().uniform("exposure", exposure);
           uniformChanged = false;
         }
 
-        tex.bind();
+        // tex.bind();
+        texY.bind(0);
+        texU.bind(1);
+        texV.bind(2);
         // TODO there is likely a better way to set the pose.
         //      g.translate(renderPose.get().pos());
         g.rotate(renderPose.get().quat());
         g.scale(renderScale.get());
         g.draw(sphere);
-        tex.unbind();
+        // tex.unbind();
+        texY.unbind(0);
+        texU.unbind(1);
+        texV.unbind(2);
       }
       g.popMatrix();
     }
@@ -323,10 +386,11 @@ void VideoApp::onDraw(Graphics &g) {
 void VideoApp::onSound(AudioIOData &io) {
   if (isPrimary()) {
     if (state().playing) {
-      //uint8_t *audioBuffer = videoDecoder.getAudioFrame(state().global_clock);
+      // uint8_t *audioBuffer =
+      // videoDecoder.getAudioFrame(state().global_clock);
 
       // check if gotAudioFrame needed to be called before returning
-      //if (audioBuffer) {
+      // if (audioBuffer) {
       //  int channelSize = io.framesPerBuffer() * sizeof(float);
       //  int frameSize = channelSize * videoDecoder.audioNumChannels();
       //  memcpy(io.outBuffer(0), audioBuffer, frameSize);
@@ -416,7 +480,6 @@ bool VideoApp::onKeyDown(const Keyboard &k) {
       pos += 10.0;
       state().global_clock += 10.0;
       state().playing = false;
-
     }
   }
   return true;

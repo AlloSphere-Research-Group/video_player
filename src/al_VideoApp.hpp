@@ -50,11 +50,12 @@ public:
   void setWindowed(Pose pose, Vec3f scale);
 
 private:
-  Texture tex;
+  Texture tex, texY, texU, texV;
   VAOMesh quad, sphere;
   bool equirectangular{false};
 
   ShaderProgram pano_shader;
+  ShaderProgram yuv_shader;
   float exposure;
   bool uniformChanged{false};
 
@@ -78,6 +79,7 @@ private:
   ParameterBool windowed{"windowed", "", 0.0};
   ParameterPose renderPose{"renderPose", "", Pose(Vec3d(0, 0, -4))};
   ParameterVec3 renderScale{"renderScale", "", Vec3f(1, 1, 1)};
+  ParameterBool useYUV{"useYUV", "", 0.0};
 };
 
 } // namespace al
