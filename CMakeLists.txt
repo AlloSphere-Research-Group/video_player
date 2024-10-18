@@ -1,21 +1,37 @@
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION 3.28)
 
 project(VideoPlayer)
 
 # name of application. replace 'app' with desired app name
 set(APP_NAME allo_player)
 
-# path to main source file
-add_executable(${APP_NAME}
-               src/main.cpp
-               src/al_VideoApp.hpp
-               src/al_VideoApp.cpp
-               src/MTCReader.hpp
-               src/MTCReader.cpp)
-# add_executable(${APP_NAME} src/test2.cpp)
+# cmake scripts are kept in the cmake directory
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
 
-# add allolib as a subdirectory to the project
+# disable in-source builds
+include(NoInSourceBuilds)
+# enable interprocedural optimization if possible
+include(SetIPO)
+
+if(MSVC)
+  set(CMAKE_BUILD_PARALLEL_LEVEL $ENV{NUMBER_OF_PROCESSORS})
+  # add_compile_options(/utf-8)
+  # set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /STACK:4194304")
+endif()
+
+# path to main source file
+# add_executable(${APP_NAME}
+#                src/main.cpp
+#                src/al_VideoApp.hpp
+#                src/al_VideoApp.cpp
+#                src/MTCReader.hpp
+#                src/MTCReader.cpp)
+# add_executable(${APP_NAME} src/test.cpp)
+# add_executable(${APP_NAME} src/test2.cpp)
+add_executable(${APP_NAME} src/test3.cpp)
+
 add_subdirectory(allolib)
+target_link_libraries(${APP_NAME} PRIVATE alapp)
 
 if (EXISTS ${CMAKE_CURRENT_LIST_DIR}/al_ext)
   message("Buiding extensions in al_ext")
@@ -24,69 +40,13 @@ if (EXISTS ${CMAKE_CURRENT_LIST_DIR}/al_ext)
   target_link_libraries(${APP_NAME} PRIVATE ${AL_EXT_LIBRARIES})
 endif()
 
-# link allolib to project
-target_link_libraries(${APP_NAME} PRIVATE al)
-
-# find_package(FFMPEG REQUIRED)
-# target_include_directories(${APP_NAME} PRIVATE ${FFMPEG_INCLUDE_DIRS})
-# target_link_directories(${APP_NAME} PRIVATE ${FFMPEG_LIBRARY_DIRS})
-# target_link_libraries(${APP_NAME} PRIVATE ${FFMPEG_LIBRARIES})
-
-# set(FFMPEG_ROOT "C:\\Users\\Andres\\source\\repos\\ffmpeg-n4.4-78-g031c0cb0b4-win64-gpl-shared-4.4" CACHE STRING "Path to FFMPEG lib and include directories")
-# set(FFMPEG_ROOT "/usr/local/" CACHE STRING "Path to FFMPEG lib and include directories")
-# set(FFMPEG_ROOT "/alloshare/code/kenny/ffmpeg_install/" CACHE STRING "Path to FFMPEG lib and include directories")
-# message("Using FFMPEG at ${FFMPEG_ROOT}")
-
-# FFMPEG
-# find_path(AVCODEC_INCLUDE_DIR libavcodec/avcodec.h PATHS ${FFMPEG_ROOT} PATH_SUFFIXES "include")
-# find_library(AVCODEC_LIBRARY avcodec PATHS ${FFMPEG_ROOT} PATH_SUFFIXES "lib")
-
-# find_path(AVFORMAT_INCLUDE_DIR libavformat/avformat.h PATHS ${FFMPEG_ROOT} PATH_SUFFIXES "include")
-# find_library(AVFORMAT_LIBRARY avformat PATHS ${FFMPEG_ROOT} PATH_SUFFIXES "lib")
-
-# find_path(AVUTIL_INCLUDE_DIR libavutil/avutil.h PATHS ${FFMPEG_ROOT} PATH_SUFFIXES "include")
-# find_library(AVUTIL_LIBRARY avutil PATHS ${FFMPEG_ROOT} PATH_SUFFIXES "lib")
-
-# find_path(AVDEVICE_INCLUDE_DIR libavdevice/avdevice.h PATHS ${FFMPEG_ROOT} PATH_SUFFIXES "include")
-# find_library(AVDEVICE_LIBRARY avdevice PATHS ${FFMPEG_ROOT} PATH_SUFFIXES "lib")
-
-# find_path(SWSCALE_INCLUDE_DIR libswscale/swscale.h PATHS ${FFMPEG_ROOT} PATH_SUFFIXES "include")
-# find_library(SWSCALE_LIBRARY swscale PATHS ${FFMPEG_ROOT} PATH_SUFFIXES "lib")
-
-
-
-# find_path(AVCODEC_INCLUDE_DIR libavcodec/avcodec.h PATHS ${FFMPEG_ROOT} NO_DEFAULT_PATH)
-# find_library(AVCODEC_LIBRARY avcodec PATHS ${FFMPEG_ROOT} PATH_SUFFIXES "libavcodec" NO_DEFAULT_PATH)
-
-# find_path(AVFORMAT_INCLUDE_DIR libavformat/avformat.h PATHS ${FFMPEG_ROOT} NO_DEFAULT_PATH)
-# find_library(AVFORMAT_LIBRARY avformat PATHS ${FFMPEG_ROOT} PATH_SUFFIXES "libavformat" NO_DEFAULT_PATH)
-
-# find_path(AVUTIL_INCLUDE_DIR libavutil/avutil.h PATHS ${FFMPEG_ROOT} NO_DEFAULT_PATH)
-# find_library(AVUTIL_LIBRARY avutil PATHS ${FFMPEG_ROOT} PATH_SUFFIXES "libavutil" NO_DEFAULT_PATH)
-
-# find_path(AVDEVICE_INCLUDE_DIR libavdevice/avdevice.h PATHS ${FFMPEG_ROOT} NO_DEFAULT_PATH)
-# find_library(AVDEVICE_LIBRARY avdevice PATHS ${FFMPEG_ROOT} PATH_SUFFIXES "libavdevice" NO_DEFAULT_PATH)
-
-# find_path(SWSCALE_INCLUDE_DIR libswscale/swscale.h PATHS ${FFMPEG_ROOT} NO_DEFAULT_PATH)
-# find_library(SWSCALE_LIBRARY swscale PATHS ${FFMPEG_ROOT} PATH_SUFFIXES "libswscale" NO_DEFAULT_PATH)
-
-target_link_libraries(${APP_NAME} PRIVATE "${AVCODEC_LIBRARY}" "${AVFORMAT_LIBRARY}" "${AVUTIL_LIBRARY}" "${ADEVICE_LIBRARY}" "${SWSCALE_LIBRARY}")
-target_include_directories(${APP_NAME} PRIVATE ${AVCODEC_INCLUDE_DIR} ${AVFORMAT_INCLUDE_DIR} ${AVUTIL_INCLUDE_DIR}  ${AVDEVICE_INCLUDE_DIR} ${SWSCALE_INCLUDE_PATH})
-
-# example line for find_package usage
-# find_package(Qt5Core REQUIRED CONFIG PATHS "C:/Qt/5.12.0/msvc2017_64/lib" NO_DEFAULT_PATH)
-
-# replace ${PATH_TO_INCLUDE_DIR} before including other libraries
-# target_include_directories(${APP_NAME} PRIVATE ${PATH_TO_INCLUDE_DIR})
-
-# replace ${PATH_TO_LIB_FILE} before linking other libraries
-# target_link_libraries(${APP_NAME} PRIVATE ${PATH_TO_LIB_FILE})
-
-# binaries are put into the ./bin directory by default
 set_target_properties(${APP_NAME} PROPERTIES
-  CXX_STANDARD 14
+  CXX_STANDARD 20
   CXX_STANDARD_REQUIRED ON
+  CXX_EXTENSIONS OFF
   RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}/bin
-  RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_CURRENT_LIST_DIR}/bin
+  RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_CURRENT_LIST_DIR}/debug/bin
   RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_CURRENT_LIST_DIR}/bin
+  # ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}/lib
+  # LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}/bin
 )

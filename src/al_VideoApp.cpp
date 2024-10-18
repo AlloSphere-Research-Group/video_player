@@ -1,3 +1,5 @@
+#include <algorithm>
+
 #include "al_VideoApp.hpp"
 
 #include "al/graphics/al_Font.hpp"
@@ -255,6 +257,16 @@ void VideoApp::onAnimate(al_sec dt) {
       texU.submit(frame->dataU.data());
       texV.submit(frame->dataV.data());
       videoDecoder.gotVideoFrame();
+    } else if (videoDecoder.finished()) {
+      if (videoDecoder.isLooping()) {
+        state().global_clock = 0;
+        videoDecoder.seek(0);
+      } else {
+        std::cout << "Playback finished" << std::endl;
+        state().playing = false;
+      }
+
+      // TODO: add pause, loop, seek to GUI
     }
   }
 }
@@ -452,6 +464,14 @@ void VideoApp::onSound(AudioIOData &io) {
 bool VideoApp::onKeyDown(const Keyboard &k) {
   if (k.key() == ' ') {
     state().playing = !state().playing;
+  } else if (k.key() == '5') {
+    videoDecoder.pause(true);
+  } else if (k.key() == '6') {
+    videoDecoder.pause(false);
+  } else if (k.key() == '7') {
+    videoDecoder.loop(true);
+  } else if (k.key() == '8') {
+    videoDecoder.loop(false);
   } else if (k.key() == 'o') {
     if (hasCapability(CAP_OMNIRENDERING)) {
       omniRendering->drawOmni = !omniRendering->drawOmni;
@@ -560,7 +580,7 @@ void VideoApp::configureAudio() {
     audioDomain()->audioIO().framesPerBuffer(1024);
   }
   audioDomain()->audioIO().channelsOut(
-      std::max(maxChan + 1, videoDecoder.audioNumChannels()));
+      (std::max)(maxChan + 1, videoDecoder.audioNumChannels()));
 }
 
 bool VideoApp::loadAudioFile(std::string fileName,
