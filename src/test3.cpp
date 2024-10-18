@@ -32,6 +32,9 @@ static AVPixelFormat get_hw_format(AVCodecContext *ctx,
       return *p;
     }
   }
+
+  std::cerr << "Failed to get HW surface format" << std::endl;
+  return AV_PIX_FMT_NONE;
 }
 
 static int decode_write(AVCodecContext *avctx, AVPacket *packet) {
