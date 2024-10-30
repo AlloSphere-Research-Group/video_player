@@ -50,9 +50,9 @@ void main() {
 
   // modify texcoord based on eye for top bottom stereo
   if(eye < 0){ // lefteye top
-    texcoord_.v = texcoord_.v * 0.5 + 0.5;
+    texcoord_.y = texcoord_.y * 0.5 + 0.5;
   } else if(eye > 0) { //righteye bottom
-    texcoord_.v = texcoord_.v * 0.5;
+    texcoord_.y = texcoord_.y * 0.5;
   }
 }
 )";
