@@ -49,7 +49,7 @@ public:
 
   void setWindowed(Pose pose, Vec3f scale);
 
-private:
+// private:
   Texture tex;
   VAOMesh quad, sphere;
   bool equirectangular{false};
