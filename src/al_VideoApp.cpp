@@ -17,6 +17,7 @@ layout (location = 2) in vec2 texcoord;
 
 uniform float eye_sep;
 uniform float foc_len;
+uniform float eye;
 
 out vec2 texcoord_;
 
@@ -46,6 +47,13 @@ void main() {
   }
 
   texcoord_ = texcoord;
+
+  // modify texcoord based on eye for top bottom stereo
+  if(eye < 0){ // lefteye top
+    texcoord_.v = texcoord_.v * 0.5 + 0.5;
+  } else if(eye > 0) { //righteye bottom
+    texcoord_.v = texcoord_.v * 0.5;
+  }
 }
 )";
 
@@ -66,6 +74,7 @@ mat4 exposureMat (float value) {
 
 // can apply filters here
 void main() {
+
   frag_color = exposureMat(exposure) * texture(tex0, texcoord_);
 
   // frag_color = texture(tex0, texcoord_);
@@ -77,7 +86,7 @@ void VideoApp::onInit() {
   audioIO().gain(1.0); // 0.4
   CuttleboneStateSimulationDomain<SharedState>::enableCuttlebone(this);
 
-  parameterServer() << renderPose << renderScale << windowed;
+  parameterServer() << renderPose << renderScale << windowed << stereo;
   configureAudio();
   for (const auto &sf : soundfiles) {
     sf.soundfile->seek(-audioDelay);
@@ -163,6 +172,7 @@ void VideoApp::onCreate() {
 
 void VideoApp::onAnimate(al_sec dt) {
   nav().pos().set(0);
+  lens().eyeSep(0);
 
   if (isPrimary()) {
     uint8_t hour{0}, minute{0}, second{0}, frame{0};
@@ -194,6 +204,7 @@ void VideoApp::onAnimate(al_sec dt) {
       ParameterGUI::draw(&renderPose);
       ParameterGUI::draw(&renderScale);
       ParameterGUI::draw(&windowed);
+      ParameterGUI::draw(&stereo);
 
       ImGui::End();
       imguiEndFrame();
@@ -214,7 +225,7 @@ void VideoApp::onDraw(Graphics &g) {
   g.clear();
 
   if (renderVideo.get() == 1.0) {
-    if (isPrimary()) {
+    if (isPrimary()) { // render in Simulator
       if (windowed.get() == 1.0) {
         g.pushMatrix();
         g.translate(renderPose.get().pos());
@@ -242,7 +253,7 @@ void VideoApp::onDraw(Graphics &g) {
 
         g.popMatrix();
       }
-    } else {
+    } else { // render in Sphere
       g.pushMatrix();
       if (windowed.get() == 1.0) {
         // TODO there is likely a better way to set the pose.
@@ -266,6 +277,7 @@ void VideoApp::onDraw(Graphics &g) {
           uniformChanged = false;
         }
 
+        g.shader().uniform("eye", g.eye());
         tex.bind();
         // TODO there is likely a better way to set the pose.
         //      g.translate(renderPose.get().pos());

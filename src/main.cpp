@@ -43,7 +43,12 @@ bool loadSession(VideoApp &app, std::string sessionFile) {
     }
   }
   if (appConfig.hasKey<bool>("windowed")) {
-    app.setWindowed(p, s);
+    auto w = appConfig.root->get_as<bool>("windowed");
+    if(w && *w) app.setWindowed(p, s);
+  }
+  if (appConfig.hasKey<bool>("stereo")) {
+    auto s = appConfig.root->get_as<bool>("stereo");
+    if(s) app.stereo = *s;
   }
 
   if (appConfig.hasKey<double>("globalGain")) {
@@ -130,8 +135,8 @@ int main(int argc, char *argv[]) {
   auto dev = AudioDevice::defaultOutput();
   if (!app.isPrimary() && app.omniRendering) {
     // Disable stereo
-    app.omniRendering->stereo(false);
-    app.displayMode(Window::DEFAULT_BUF);
+    // app.omniRendering->stereo(false);
+    // app.displayMode(Window::DEFAULT_BUF);
   }
 
   app.start();
