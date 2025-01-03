@@ -277,7 +277,10 @@ void VideoApp::onDraw(Graphics &g) {
           uniformChanged = false;
         }
 
-        g.shader().uniform("eye", g.eye());
+        
+        if(stereo.get() != 1.0) g.shader().uniform("eye", 0.0f);
+        else g.shader().uniform("eye", g.eye());
+        
         tex.bind();
         // TODO there is likely a better way to set the pose.
         //      g.translate(renderPose.get().pos());
