@@ -151,8 +151,8 @@ void VideoApp::onCreate() {
 
   // TODO: review high fps option with manual timing control
   // set fps
+  fps(videoDecoder.fps());
   if (isPrimary()) {
-    fps(videoDecoder.fps());
     mtcReader.TCframes.setCurrent("30");
     state().global_clock = 0;
     renderVideo.set(0.0);
@@ -277,10 +277,11 @@ void VideoApp::onDraw(Graphics &g) {
           uniformChanged = false;
         }
 
-        
-        if(stereo.get() != 1.0) g.shader().uniform("eye", 0.0f);
-        else g.shader().uniform("eye", g.eye());
-        
+        if (stereo.get() != 1.0)
+          g.shader().uniform("eye", 0.0f);
+        else
+          g.shader().uniform("eye", g.eye());
+
         tex.bind();
         // TODO there is likely a better way to set the pose.
         //      g.translate(renderPose.get().pos());
@@ -338,10 +339,11 @@ void VideoApp::onDraw(Graphics &g) {
 void VideoApp::onSound(AudioIOData &io) {
   if (isPrimary()) {
     if (state().playing) {
-      //uint8_t *audioBuffer = videoDecoder.getAudioFrame(state().global_clock);
+      // uint8_t *audioBuffer =
+      // videoDecoder.getAudioFrame(state().global_clock);
 
       // check if gotAudioFrame needed to be called before returning
-      //if (audioBuffer) {
+      // if (audioBuffer) {
       //  int channelSize = io.framesPerBuffer() * sizeof(float);
       //  int frameSize = channelSize * videoDecoder.audioNumChannels();
       //  memcpy(io.outBuffer(0), audioBuffer, frameSize);
@@ -431,7 +433,6 @@ bool VideoApp::onKeyDown(const Keyboard &k) {
       pos += 10.0;
       state().global_clock += 10.0;
       state().playing = false;
-
     }
   }
   return true;
