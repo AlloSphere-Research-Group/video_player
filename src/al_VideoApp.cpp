@@ -1,6 +1,7 @@
 #include "al_VideoApp.hpp"
 
 #include "al/graphics/al_Font.hpp"
+#include "al/graphics/al_OpenGL.hpp"
 #include "al/sphere/al_AlloSphereSpeakerLayout.hpp"
 #include "al/sphere/al_SphereUtils.hpp"
 #include "al_ext/statedistribution/al_CuttleboneStateSimulationDomain.hpp"
@@ -86,7 +87,8 @@ void VideoApp::onInit() {
   audioIO().gain(1.0); // 0.4
   CuttleboneStateSimulationDomain<SharedState>::enableCuttlebone(this);
 
-  parameterServer() << renderPose << renderScale << windowed << stereo;
+  parameterServer() << renderPose << renderScale << windowed << stereo
+                    << fullscreen;
   configureAudio();
   for (const auto &sf : soundfiles) {
     sf.soundfile->seek(-audioDelay);
@@ -142,7 +144,25 @@ void VideoApp::onCreate() {
                Texture::RGBA, Texture::UBYTE);
 
   // generate mesh
-  addTexRect(quad, -1, 1, 2, -2);
+  // Create quad in NDC coordinates: from (-1,-1) to (1,1)
+  // This will fill the screen when rendered with identity projection
+  quad.reset();
+  quad.primitive(Mesh::TRIANGLES);
+  // First triangle: bottom-left, bottom-right, top-left
+  // FFmpeg provides video frames with (0,0) at top-left, so flip Y texture coords
+  quad.vertex(-1.0f, -1.0f, 0.0f);
+  quad.texCoord(0.0f, 1.0f);  // Bottom-left vertex -> top-left texture coord
+  quad.vertex(1.0f, -1.0f, 0.0f);
+  quad.texCoord(1.0f, 1.0f);  // Bottom-right vertex -> top-right texture coord
+  quad.vertex(-1.0f, 1.0f, 0.0f);
+  quad.texCoord(0.0f, 0.0f);  // Top-left vertex -> bottom-left texture coord
+  // Second triangle: bottom-right, top-right, top-left
+  quad.vertex(1.0f, -1.0f, 0.0f);
+  quad.texCoord(1.0f, 1.0f);  // Bottom-right vertex -> top-right texture coord
+  quad.vertex(1.0f, 1.0f, 0.0f);
+  quad.texCoord(1.0f, 0.0f);  // Top-right vertex -> bottom-right texture coord
+  quad.vertex(-1.0f, 1.0f, 0.0f);
+  quad.texCoord(0.0f, 0.0f);  // Top-left vertex -> bottom-left texture coord
   quad.update();
 
   // addSphereWithTexcoords(sphere, 5, 20);
@@ -163,6 +183,19 @@ void VideoApp::onCreate() {
   //   omniRendering->stereo(false);
   //   displayMode(Window::DEFAULT_BUF);
   // }
+
+  // Disable omnirender when fullscreen mode is enabled
+  if (hasCapability(Capability::CAP_OMNIRENDERING) && omniRendering) {
+    fullscreen.registerChangeCallback([this](float value) {
+      if (omniRendering) {
+        omniRendering->drawOmni = (value == 0.0);
+      }
+    });
+    // Set initial state based on fullscreen parameter
+    if (fullscreen.get() == 1.0) {
+      omniRendering->drawOmni = false;
+    }
+  }
 
   // start GUI
   if (hasCapability(Capability::CAP_2DGUI)) {
@@ -205,6 +238,7 @@ void VideoApp::onAnimate(al_sec dt) {
       ParameterGUI::draw(&renderScale);
       ParameterGUI::draw(&windowed);
       ParameterGUI::draw(&stereo);
+      ParameterGUI::draw(&fullscreen);
 
       ImGui::End();
       imguiEndFrame();
@@ -215,7 +249,24 @@ void VideoApp::onAnimate(al_sec dt) {
     uint8_t *frame = videoDecoder.getVideoFrame(state().global_clock);
 
     if (frame) {
-      tex.submit(frame);
+      // FFmpeg aligns rows to 32 bytes, so we need to tell OpenGL about the stride
+      // Calculate expected stride in bytes: align width*4 (RGBA) to 32-byte boundary
+      int width = videoDecoder.width();
+      int bytesPerPixel = 4;  // RGBA
+      int expectedStrideBytes = ((width * bytesPerPixel + 31) / 32) * 32;
+      int tightStrideBytes = width * bytesPerPixel;
+      
+      // Only set unpack row length if stride differs from tightly packed
+      // GL_UNPACK_ROW_LENGTH expects stride in pixels, not bytes
+      if (expectedStrideBytes != tightStrideBytes) {
+        tex.bind_temp();
+        glPixelStorei(GL_UNPACK_ROW_LENGTH, expectedStrideBytes / bytesPerPixel);
+        tex.submit(frame);
+        glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);  // Reset to default
+        tex.unbind_temp();
+      } else {
+        tex.submit(frame);
+      }
       videoDecoder.gotVideoFrame();
     }
   }
@@ -225,7 +276,45 @@ void VideoApp::onDraw(Graphics &g) {
   g.clear();
 
   if (renderVideo.get() == 1.0) {
-    if (isPrimary()) { // render in Simulator
+    // Fullscreen mode: render video directly without sphere mapping or
+    // omnirender
+    if (fullscreen.get() == 1.0) {
+      // Save current state
+      g.pushViewport();
+      g.pushCamera();
+      g.pushMatrix();
+      
+      // Set viewport to fill entire framebuffer
+      g.viewport(0, 0, fbWidth(), fbHeight());
+      
+      // Disable depth testing for 2D fullscreen rendering
+      g.depthTesting(false);
+      
+      // Use identity camera/projection for fullscreen rendering
+      // This sets up orthographic projection that maps directly to screen space
+      g.camera(Viewpoint::IDENTITY);
+      
+      // Reset matrix stack to identity - no transformations
+      g.resetMatrixStack();
+      
+      // Make sure we're using default texture shader (not pano_shader)
+      // Explicitly set texture mode which uses the default texture shader
+      g.texture();
+      
+      // Draw quad directly in NDC space (-1 to 1)
+      // Quad spans from (-1, -1) bottom-left to (1, 1) top-right
+      tex.bind();
+      g.draw(quad);
+      tex.unbind();
+      
+      // Restore state
+      g.popMatrix();
+      g.popCamera();
+      g.popViewport();
+      
+      // Re-enable depth testing
+      g.depthTesting(true);
+    } else if (isPrimary()) { // render in Simulator
       if (windowed.get() == 1.0) {
         g.pushMatrix();
         g.translate(renderPose.get().pos());

@@ -77,6 +77,7 @@ public:
 
   ParameterBool windowed{"windowed", "", 0.0};
   ParameterBool stereo{"stereo", "", 0.0};
+  ParameterBool fullscreen{"fullscreen", "", 0.0};
   ParameterPose renderPose{"renderPose", "", Pose(Vec3d(0, 0, -4))};
   ParameterVec3 renderScale{"renderScale", "", Vec3f(1, 1, 1)};
 };
