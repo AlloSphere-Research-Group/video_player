@@ -172,6 +172,19 @@ bool loadSession(VideoApp &app, std::string sessionFile) {
     std::cout << "Key 'fullscreen' not found" << std::endl;
   }
 
+  if (appConfig.hasKey<int64_t>("oscPort")) {
+    std::string oscHost = "127.0.0.1";
+    if (appConfig.hasKey<std::string>("oscHost")) {
+      oscHost = appConfig.gets("oscHost");
+    }
+    uint16_t oscPort = static_cast<uint16_t>(appConfig.geti("oscPort"));
+    std::cout << "Found OSC output: " << oscHost << ":" << oscPort << std::endl;
+    app.configureVideoOsc(oscHost, oscPort);
+  } else {
+    std::cout << "Key 'oscPort' not found — video transport OSC disabled"
+              << std::endl;
+  }
+
   // Load global gain
   if (appConfig.hasKey<double>("globalGain")) {
     double gain = appConfig.getd("globalGain");

@@ -3,6 +3,7 @@
 
 #include "MTCReader.hpp"
 #include "al/app/al_DistributedApp.hpp"
+#include "al/protocol/al_OSC.hpp"
 #include "al/sound/al_SpeakerAdjustment.hpp"
 #include "al_ext/video/al_VideoDecoder.hpp"
 
@@ -49,7 +50,16 @@ public:
 
   void setWindowed(Pose pose, Vec3f scale);
 
-// private:
+  /// Enable outbound OSC for play / pause / seek (primary node only).
+  void configureVideoOsc(const std::string &host, uint16_t port);
+
+  void setPlaying(bool playing);
+  void seekToSeconds(double timeSec);
+  void sendVideoOsc(const std::string &address, double value = -1.0);
+
+  osc::Send videoOscSend;
+  bool videoOscEnabled{false};
+
   Texture tex;
   VAOMesh quad, sphere;
   bool equirectangular{false};

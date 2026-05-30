@@ -15,6 +15,13 @@ Press space bar to pause/play.
 
 Press *Tab* to show/hide the GUI.
 
+When `oscPort` is set in the session TOML (optional `oscHost`, default
+`127.0.0.1`), the primary node sends OSC on play, pause, and seek:
+
+- `/video/play`
+- `/video/pause`
+- `/video/seek` (float, time in seconds)
+
 # Session format
 
 The session is described in a TOML file. The session file must end in ".toml"

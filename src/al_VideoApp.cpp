@@ -89,6 +89,7 @@ void VideoApp::onInit() {
 
   parameterServer() << renderPose << renderScale << windowed << stereo
                     << fullscreen;
+
   configureAudio();
   for (const auto &sf : soundfiles) {
     sf.soundfile->seek(-audioDelay);
@@ -149,20 +150,21 @@ void VideoApp::onCreate() {
   quad.reset();
   quad.primitive(Mesh::TRIANGLES);
   // First triangle: bottom-left, bottom-right, top-left
-  // FFmpeg provides video frames with (0,0) at top-left, so flip Y texture coords
+  // FFmpeg provides video frames with (0,0) at top-left, so flip Y texture
+  // coords
   quad.vertex(-1.0f, -1.0f, 0.0f);
-  quad.texCoord(0.0f, 1.0f);  // Bottom-left vertex -> top-left texture coord
+  quad.texCoord(0.0f, 1.0f); // Bottom-left vertex -> top-left texture coord
   quad.vertex(1.0f, -1.0f, 0.0f);
-  quad.texCoord(1.0f, 1.0f);  // Bottom-right vertex -> top-right texture coord
+  quad.texCoord(1.0f, 1.0f); // Bottom-right vertex -> top-right texture coord
   quad.vertex(-1.0f, 1.0f, 0.0f);
-  quad.texCoord(0.0f, 0.0f);  // Top-left vertex -> bottom-left texture coord
+  quad.texCoord(0.0f, 0.0f); // Top-left vertex -> bottom-left texture coord
   // Second triangle: bottom-right, top-right, top-left
   quad.vertex(1.0f, -1.0f, 0.0f);
-  quad.texCoord(1.0f, 1.0f);  // Bottom-right vertex -> top-right texture coord
+  quad.texCoord(1.0f, 1.0f); // Bottom-right vertex -> top-right texture coord
   quad.vertex(1.0f, 1.0f, 0.0f);
-  quad.texCoord(1.0f, 0.0f);  // Top-right vertex -> bottom-right texture coord
+  quad.texCoord(1.0f, 0.0f); // Top-right vertex -> bottom-right texture coord
   quad.vertex(-1.0f, 1.0f, 0.0f);
-  quad.texCoord(0.0f, 0.0f);  // Top-left vertex -> bottom-left texture coord
+  quad.texCoord(0.0f, 0.0f); // Top-left vertex -> bottom-left texture coord
   quad.update();
 
   // addSphereWithTexcoords(sphere, 5, 20);
@@ -249,20 +251,22 @@ void VideoApp::onAnimate(al_sec dt) {
     uint8_t *frame = videoDecoder.getVideoFrame(state().global_clock);
 
     if (frame) {
-      // FFmpeg aligns rows to 32 bytes, so we need to tell OpenGL about the stride
-      // Calculate expected stride in bytes: align width*4 (RGBA) to 32-byte boundary
+      // FFmpeg aligns rows to 32 bytes, so we need to tell OpenGL about the
+      // stride Calculate expected stride in bytes: align width*4 (RGBA) to
+      // 32-byte boundary
       int width = videoDecoder.width();
-      int bytesPerPixel = 4;  // RGBA
+      int bytesPerPixel = 4; // RGBA
       int expectedStrideBytes = ((width * bytesPerPixel + 31) / 32) * 32;
       int tightStrideBytes = width * bytesPerPixel;
-      
+
       // Only set unpack row length if stride differs from tightly packed
       // GL_UNPACK_ROW_LENGTH expects stride in pixels, not bytes
       if (expectedStrideBytes != tightStrideBytes) {
         tex.bind_temp();
-        glPixelStorei(GL_UNPACK_ROW_LENGTH, expectedStrideBytes / bytesPerPixel);
+        glPixelStorei(GL_UNPACK_ROW_LENGTH,
+                      expectedStrideBytes / bytesPerPixel);
         tex.submit(frame);
-        glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);  // Reset to default
+        glPixelStorei(GL_UNPACK_ROW_LENGTH, 0); // Reset to default
         tex.unbind_temp();
       } else {
         tex.submit(frame);
@@ -283,35 +287,35 @@ void VideoApp::onDraw(Graphics &g) {
       g.pushViewport();
       g.pushCamera();
       g.pushMatrix();
-      
+
       // Set viewport to fill entire framebuffer
       g.viewport(0, 0, fbWidth(), fbHeight());
-      
+
       // Disable depth testing for 2D fullscreen rendering
       g.depthTesting(false);
-      
+
       // Use identity camera/projection for fullscreen rendering
       // This sets up orthographic projection that maps directly to screen space
       g.camera(Viewpoint::IDENTITY);
-      
+
       // Reset matrix stack to identity - no transformations
       g.resetMatrixStack();
-      
+
       // Make sure we're using default texture shader (not pano_shader)
       // Explicitly set texture mode which uses the default texture shader
       g.texture();
-      
+
       // Draw quad directly in NDC space (-1 to 1)
       // Quad spans from (-1, -1) bottom-left to (1, 1) top-right
       tex.bind();
       g.draw(quad);
       tex.unbind();
-      
+
       // Restore state
       g.popMatrix();
       g.popCamera();
       g.popViewport();
-      
+
       // Re-enable depth testing
       g.depthTesting(true);
     } else if (isPrimary()) { // render in Simulator
@@ -491,9 +495,57 @@ void VideoApp::onSound(AudioIOData &io) {
   }
 }
 
+void VideoApp::configureVideoOsc(const std::string &host, uint16_t port) {
+  videoOscEnabled = false;
+  if (port == 0) {
+    return;
+  }
+  if (videoOscSend.open(port, host.c_str())) {
+    videoOscEnabled = true;
+    std::cout << "Video OSC send: " << host << ":" << port << std::endl;
+  } else {
+    std::cerr << "Failed to open video OSC send to " << host << ":" << port
+              << std::endl;
+  }
+}
+
+void VideoApp::sendVideoOsc(const std::string &address, double value) {
+  if (!videoOscEnabled || !isPrimary()) {
+    return;
+  }
+  if (value >= 0.0) {
+    videoOscSend.send(address, static_cast<float>(value));
+  } else {
+    videoOscSend.send(address);
+  }
+}
+
+void VideoApp::setPlaying(bool playing) {
+  if (!isPrimary()) {
+    return;
+  }
+  if (state().playing == playing) {
+    return;
+  }
+  state().playing = playing;
+  sendVideoOsc(playing ? "/play" : "/pause");
+}
+
+void VideoApp::seekToSeconds(double timeSec) {
+  if (!isPrimary()) {
+    return;
+  }
+  if (timeSec < 0.0) {
+    timeSec = 0.0;
+  }
+  state().global_clock = timeSec;
+  state().playing = false;
+  sendVideoOsc("/time", timeSec);
+}
+
 bool VideoApp::onKeyDown(const Keyboard &k) {
   if (k.key() == ' ') {
-    state().playing = !state().playing;
+    setPlaying(!state().playing);
   } else if (k.key() == 'o') {
     if (hasCapability(CAP_OMNIRENDERING)) {
       omniRendering->drawOmni = !omniRendering->drawOmni;
@@ -503,26 +555,9 @@ bool VideoApp::onKeyDown(const Keyboard &k) {
   } else if (k.key() == Keyboard::TAB) {
     showHUD = !showHUD;
   } else if (k.key() == '[') {
-    if (isPrimary()) {
-      // TODO: implement get_master_clock
-      double pos = state().global_clock;
-      double diff = -10.0;
-      pos += diff;
-      if (pos < 0) {
-        pos = 0;
-      }
-      state().global_clock = pos;
-      state().playing = false;
-    }
+    seekToSeconds(state().global_clock - 10.0);
   } else if (k.key() == ']') {
-    if (isPrimary()) {
-      // TODO: implement get_master_clock
-      // TODO: get end pos
-      double pos = state().global_clock;
-      pos += 10.0;
-      state().global_clock += 10.0;
-      state().playing = false;
-    }
+    seekToSeconds(state().global_clock + 10.0);
   }
   return true;
 }
